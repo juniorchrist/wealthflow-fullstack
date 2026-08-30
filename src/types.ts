@@ -136,7 +136,8 @@ export interface UserProfile {
   prenom: string;
   numero: string;
   email: string;
-  mdp: string; // Uniquement des chiffres
+  mdp?: string;
+  hasPin?: boolean;
   registeredAt: number;
 }
 

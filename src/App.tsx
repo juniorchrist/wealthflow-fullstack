@@ -1,12 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { AppState, Category, SavingsGoal, Transaction, UserProfile } from './types';
-import {
-  getInitialState,
-  saveStateToStorage,
-  exportToCSV,
-  saveUserProfileToStorage,
-  removeUserProfileFromStorage,
-} from './utils/storage';
+import React, { useState, useEffect, useCallback } from 'react';
+import { AppState, Category, SavingsGoal, Transaction, UserProfile, MonthlyBudget, AppNotification } from './types';
+import { exportToCSV } from './utils/storage';
 import { getCurrentMonthKey } from './utils/formatters';
 import { calculateMonthSummary } from './utils/analytics';
 import { Navbar } from './components/Navbar';
@@ -30,11 +24,29 @@ import { BudgetModal } from './components/BudgetModal';
 import { ConfirmModal } from './components/ConfirmModal';
 import { RegisterView } from './components/RegisterView';
 import { SecurityLockView } from './components/SecurityLockView';
-import { generateNotifications } from './services/notificationService';
+import { useAuth } from './context/AuthContext';
+import { transactionService } from './services/transactionService';
+import { budgetService } from './services/budgetService';
+import { categoryService } from './services/categoryService';
+import { savingsService } from './services/savingsService';
+import { userNotificationService } from './services/userNotificationService';
+import { DEFAULT_CATEGORIES } from './utils/constants';
 
 export default function App() {
-  const [state, setState] = useState<AppState>(getInitialState);
-  const [isLocked, setIsLocked] = useState<boolean>(true);
+  const { user, isAuthenticated, isLoading: isAuthLoading, logout, updateProfile } = useAuth();
+
+  // Core dynamic server-synced state
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [categories, setCategories] = useState<Category[]>(DEFAULT_CATEGORIES);
+  const [budgets, setBudgets] = useState<Record<string, MonthlyBudget>>({});
+  const [savingsGoals, setSavingsGoals] = useState<SavingsGoal[]>([]);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('light');
+  const [isDataLoading, setIsDataLoading] = useState<boolean>(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+
+  // App navigation and security lock
+  const [isLocked, setIsLocked] = useState<boolean>(false);
   const [currentMonthKey, setCurrentMonthKey] = useState<string>(getCurrentMonthKey);
   const [currentTab, setCurrentTab] = useState<string>('wealth');
 
@@ -63,400 +75,336 @@ export default function App() {
     onConfirm: () => {},
   });
 
-  // User Auth Handlers
-  const handleRegister = (newUser: UserProfile) => {
-    saveUserProfileToStorage(newUser);
-    setState((prev: AppState) => ({
-      ...prev,
-      userProfile: newUser,
-    }));
-    setIsLocked(false);
-  };
+  // Load authenticated user data from backend API
+  const loadUserData = useCallback(async () => {
+    if (!isAuthenticated) return;
 
-  const handleUpdateUser = (updatedUser: UserProfile) => {
-    saveUserProfileToStorage(updatedUser);
-    setState((prev: AppState) => ({
-      ...prev,
-      userProfile: updatedUser,
-    }));
-  };
+    setIsDataLoading(true);
+    setFetchError(null);
 
-  const handleLogout = () => {
-    removeUserProfileFromStorage();
-    setState((prev: AppState) => ({
-      ...prev,
-      userProfile: undefined,
-    }));
-    setIsLocked(true);
-  };
+    try {
+      const [txList, catList, budgetMap, goalsList, notifList] = await Promise.all([
+        transactionService.getTransactions().catch(() => []),
+        categoryService.getCategories().catch(() => DEFAULT_CATEGORIES),
+        budgetService.getBudgets().catch(() => ({})),
+        savingsService.getSavingsGoals().catch(() => []),
+        userNotificationService.getNotifications().catch(() => []),
+      ]);
 
-  const handleResetAccount = () => {
-    setConfirmConfig({
-      isOpen: true,
-      title: 'Réinitialiser le compte',
-      message: 'Voulez-vous réinitialiser le compte pour créer un nouvel utilisateur ?',
-      confirmLabel: 'Réinitialiser',
-      variant: 'warning',
-      onConfirm: () => {
-        removeUserProfileFromStorage();
-        setState((prev: AppState) => ({
-          ...prev,
-          userProfile: undefined,
-        }));
-        setIsLocked(true);
-        setConfirmConfig((prev: typeof confirmConfig) => ({ ...prev, isOpen: false }));
-      },
-    });
-  };
+      setTransactions(txList);
+      setCategories(catList.length > 0 ? catList : DEFAULT_CATEGORIES);
+      setBudgets(budgetMap);
+      setSavingsGoals(goalsList);
+      setNotifications(notifList);
+    } catch (err: any) {
+      console.error('Failed to load user data:', err);
+      setFetchError('Erreur de synchronisation avec le serveur.');
+    } finally {
+      setIsDataLoading(false);
+    }
+  }, [isAuthenticated]);
 
-  // Save to localStorage whenever state changes
   useEffect(() => {
-    saveStateToStorage(state);
-  }, [state]);
+    if (isAuthenticated) {
+      loadUserData();
+    } else {
+      // Clear data on logout
+      setTransactions([]);
+      setCategories(DEFAULT_CATEGORIES);
+      setBudgets({});
+      setSavingsGoals([]);
+      setNotifications([]);
+    }
+  }, [isAuthenticated, loadUserData]);
 
-  // Keep notifications in sync with the data (single source of truth),
-  // preserving read/dismissed state. Dependencies exclude notifications to
-  // avoid a regeneration loop; the functional update reads latest state.
-  useEffect(() => {
-    setState((prev) => {
-      const next = generateNotifications(prev, currentMonthKey);
-      if (next.length === (prev.notifications?.length || 0) &&
-          next.every((n, i) => n.id === prev.notifications?.[i]?.id && n.read === prev.notifications?.[i]?.read)) {
-        return prev;
-      }
-      return { ...prev, notifications: next };
-    });
-  }, [state.transactions, state.budgets, state.savingsGoals, state.categories, currentMonthKey]);
-
-  // Sync theme with document element (Default to clean white background)
+  // Sync theme with document element
   useEffect(() => {
     const root = document.documentElement;
-    if (state.theme === 'dark') {
+    if (theme === 'dark') {
       root.classList.add('dark');
     } else {
       root.classList.remove('dark');
     }
-  }, [state.theme]);
+  }, [theme]);
+
+  // Aggregate AppState for view components
+  const appState: AppState = {
+    transactions,
+    categories,
+    budgets,
+    savingsGoals,
+    notifications,
+    theme,
+    userProfile: user || undefined,
+  };
 
   // Current Month Summary calculation
-  const summary = calculateMonthSummary(state, currentMonthKey);
+  const summary = calculateMonthSummary(appState, currentMonthKey);
 
   // Notification actions
-  const unreadCount = (state.notifications || []).filter((n) => !n.read).length;
+  const unreadCount = notifications.filter((n) => !n.read).length;
 
-  const handleMarkNotificationRead = (id: string) => {
-    setState((prev) => ({
-      ...prev,
-      notifications: prev.notifications?.map((n) =>
-        n.id === id ? { ...n, read: true } : n
-      ),
-    }));
-  };
-
-  const handleMarkAllNotificationsRead = () => {
-    setState((prev) => ({
-      ...prev,
-      notifications: prev.notifications?.map((n) => ({ ...n, read: true })),
-    }));
-  };
-
-  const handleDeleteNotification = (id: string) => {
-    setState((prev) => ({
-      ...prev,
-      notifications: prev.notifications?.filter((n) => n.id !== id),
-    }));
-  };
-
-  const handleClearNotifications = () => {
-    setState((prev) => ({ ...prev, notifications: [] }));
-  };
-
-  // Transaction Actions
-  const handleOpenTransactionModal = (tx?: Transaction) => {
-    setEditingTransaction(tx || null);
-    setIsTxModalOpen(true);
-  };
-
-  const handleSaveTransaction = (
-    txData: Omit<Transaction, 'id' | 'createdAt'>,
-    existingId?: string
-  ) => {
-    if (existingId) {
-      setConfirmConfig({
-        isOpen: true,
-        title: 'Modifier la transaction',
-        message: `Confirmez-vous la modification de cette transaction de ${txData.amount} FCFA ?`,
-        confirmLabel: 'Enregistrer les modifications',
-        variant: 'primary',
-        icon: 'edit',
-        onConfirm: () => {
-          setState((prev: AppState) => ({
-            ...prev,
-            transactions: prev.transactions.map((tx) =>
-              tx.id === existingId ? { ...tx, ...txData } : tx
-            ),
-          }));
-          setIsTxModalOpen(false);
-          setConfirmConfig((prev: typeof confirmConfig) => ({ ...prev, isOpen: false }));
-        },
-      });
-    } else {
-      const newTx: Transaction = {
-        ...txData,
-        id: `tx-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-        createdAt: Date.now(),
-      };
-      setState((prev: AppState) => ({
-        ...prev,
-        transactions: [newTx, ...prev.transactions],
-      }));
-      setIsTxModalOpen(false);
+  const handleMarkNotificationRead = async (id: string) => {
+    try {
+      await userNotificationService.markAsRead(id);
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === id ? { ...n, read: true } : n))
+      );
+    } catch (err) {
+      console.error('Failed to mark notification as read:', err);
     }
   };
 
-  const handleRequestDeleteTransaction = (tx: Transaction) => {
+  const handleMarkAllNotificationsRead = async () => {
+    try {
+      await userNotificationService.markAllAsRead();
+      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    } catch (err) {
+      console.error('Failed to mark all notifications as read:', err);
+    }
+  };
+
+  const handleDeleteNotification = async (id: string) => {
+    try {
+      await userNotificationService.deleteNotification(id);
+      setNotifications((prev) => prev.filter((n) => n.id !== id));
+    } catch (err) {
+      console.error('Failed to delete notification:', err);
+    }
+  };
+
+  // Transaction CRUD
+  const handleSaveTransaction = async (txData: Omit<Transaction, 'createdAt'> & { id?: string }) => {
+    try {
+      if (txData.id && transactions.some((t) => t.id === txData.id)) {
+        const updated = await transactionService.updateTransaction(txData.id, txData);
+        setTransactions((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+      } else {
+        const created = await transactionService.createTransaction(txData);
+        setTransactions((prev) => [created, ...prev]);
+      }
+      setIsTxModalOpen(false);
+      setEditingTransaction(null);
+    } catch (err: any) {
+      alert(err.message || 'Erreur lors de l’enregistrement de la transaction.');
+    }
+  };
+
+  const handleDeleteTransaction = async (tx: Transaction) => {
     setConfirmConfig({
       isOpen: true,
       title: 'Supprimer la transaction',
-      message: `Êtes-vous sûr de vouloir supprimer définitivement cette transaction de ${tx.amount} FCFA (${tx.note || 'Sans description'}) ?`,
+      message: `Voulez-vous vraiment supprimer cette opération de ${tx.amount.toLocaleString()} FCFA ?`,
       confirmLabel: 'Supprimer',
       variant: 'danger',
-      icon: 'trash',
-      onConfirm: () => {
-        setState((prev: AppState) => ({
-          ...prev,
-          transactions: prev.transactions.filter((item) => item.id !== tx.id),
-        }));
-        setConfirmConfig((prev: typeof confirmConfig) => ({ ...prev, isOpen: false }));
+      onConfirm: async () => {
+        try {
+          await transactionService.deleteTransaction(tx.id);
+          setTransactions((prev) => prev.filter((t) => t.id !== tx.id));
+          setConfirmConfig((prev) => ({ ...prev, isOpen: false }));
+        } catch (err: any) {
+          alert(err.message || 'Erreur lors de la suppression.');
+        }
       },
     });
   };
 
-  // Budget Actions
-  const handleSaveBudget = (
-    month: string,
-    totalBudget: number,
-    createSavingsPlan: boolean,
-    savingsTargetAmount: number,
-    categoryBudgets?: Record<string, number>
-  ) => {
-    setState((prev: AppState) => {
-      const nextBudgets = {
-        ...prev.budgets,
-        [month]: {
-          month,
-          totalBudget,
-          savingsTarget: createSavingsPlan ? savingsTargetAmount : undefined,
-          categoryBudgets: categoryBudgets ?? prev.budgets[month]?.categoryBudgets,
-          createdAt: prev.budgets[month]?.createdAt || Date.now(),
-          updatedAt: Date.now(),
-        },
-      };
+  // Budget CRUD
+  const handleSaveBudget = async (budgetData: {
+    month: string;
+    totalBudget: number;
+    savingsTarget?: number;
+    categoryBudgets?: Record<string, number>;
+  }) => {
+    try {
+      const saved = await budgetService.upsertBudget(budgetData);
+      setBudgets((prev) => ({
+        ...prev,
+        [saved.month]: saved,
+      }));
+      setIsBudgetModalOpen(false);
+    } catch (err: any) {
+      alert(err.message || 'Erreur lors de l’enregistrement du budget.');
+    }
+  };
 
-      let nextSavingsGoals = [...prev.savingsGoals];
+  // Savings Goal CRUD
+  const handleSaveGoal = async (goalData: any) => {
+    try {
+      if (goalData.id && savingsGoals.some((g) => g.id === goalData.id)) {
+        const updated = await savingsService.updateSavingsGoal(goalData.id, goalData);
+        setSavingsGoals((prev) => prev.map((g) => (g.id === goalData.id ? updated : g)));
+      } else {
+        const created = await savingsService.createSavingsGoal(goalData);
+        setSavingsGoals((prev) => [created, ...prev]);
+      }
+    } catch (err: any) {
+      alert(err.message || 'Erreur lors de l’enregistrement de l’objectif d’épargne.');
+    }
+  };
 
-      if (createSavingsPlan && savingsTargetAmount > 0) {
-        const existingIndex = nextSavingsGoals.findIndex((g) => g.month === month);
-        const splitAmount = Math.round(savingsTargetAmount / 4);
-        const weeklyMilestones = Array.from({ length: 4 }, (_, i) => ({
-          id: `ms-${month}-${i + 1}`,
-          title: `Semaine ${i + 1}`,
-          targetAmount: i === 3 ? savingsTargetAmount - splitAmount * 3 : splitAmount,
-          isCompleted: false,
-          completedAt: null,
-        }));
+  const handleContributeSavings = async (id: string, amount: number, milestoneId?: string) => {
+    try {
+      const updated = await savingsService.contributeSavings(id, amount, milestoneId);
+      setSavingsGoals((prev) => prev.map((g) => (g.id === id ? updated : g)));
+    } catch (err: any) {
+      alert(err.message || 'Erreur lors de la contribution à l’épargne.');
+    }
+  };
 
-        const goalObj: SavingsGoal = {
-          id: existingIndex >= 0 ? nextSavingsGoals[existingIndex].id : `goal-${month}`,
-          month,
-          title: `Current Objective`,
-          targetAmount: savingsTargetAmount,
-          currentAmount: 0,
-          milestones:
-            existingIndex >= 0 ? nextSavingsGoals[existingIndex].milestones : weeklyMilestones,
-          createdAt: Date.now(),
-        };
-
-        if (existingIndex >= 0) {
-          nextSavingsGoals[existingIndex] = goalObj;
-        } else {
-          nextSavingsGoals = [goalObj, ...nextSavingsGoals];
+  const handleDeleteGoal = async (id: string) => {
+    setConfirmConfig({
+      isOpen: true,
+      title: 'Supprimer l’objectif',
+      message: 'Êtes-vous sûr de vouloir supprimer cet objectif d’épargne ?',
+      confirmLabel: 'Supprimer',
+      variant: 'danger',
+      onConfirm: async () => {
+        try {
+          await savingsService.deleteSavingsGoal(id);
+          setSavingsGoals((prev) => prev.filter((g) => g.id !== id));
+          setConfirmConfig((prev) => ({ ...prev, isOpen: false }));
+        } catch (err: any) {
+          alert(err.message || 'Erreur lors de la suppression.');
         }
-      }
-
-      return {
-        ...prev,
-        budgets: nextBudgets,
-        savingsGoals: nextSavingsGoals,
-      };
-    });
-
-    setIsBudgetModalOpen(false);
-  };
-
-  // Allocate to vault
-  const handleAllocateSavings = (amount: number) => {
-    setState((prev: AppState) => {
-      if (prev.savingsGoals.length === 0) {
-        const newGoal: SavingsGoal = {
-          id: `goal-${Date.now()}`,
-          month: 'global',
-          title: 'Vault',
-          targetAmount: 1000000,
-          currentAmount: amount,
-          milestones: [],
-          createdAt: Date.now(),
-        };
-        return {
-          ...prev,
-          savingsGoals: [newGoal, ...prev.savingsGoals],
-        };
-      }
-
-      const currentGoal = prev.savingsGoals[0];
-      const updatedGoal: SavingsGoal = {
-        ...currentGoal,
-        currentAmount: currentGoal.currentAmount + amount,
-      };
-
-      return {
-        ...prev,
-        savingsGoals: [updatedGoal, ...prev.savingsGoals.slice(1)],
-      };
+      },
     });
   };
 
-  // Milestone toggle
-  const handleToggleMilestone = (goalId: string, milestoneId: string) => {
-    setState((prev: AppState) => {
-      const goalIndex = prev.savingsGoals.findIndex((g) => g.id === goalId);
-      if (goalIndex === -1) return prev;
+  // Category CRUD
+  const handleSaveCategory = async (catData: any) => {
+    try {
+      if (catData.id && categories.some((c) => c.id === catData.id)) {
+        const updated = await categoryService.updateCategory(catData.id, catData);
+        setCategories((prev) => prev.map((c) => (c.id === catData.id ? updated : c)));
+      } else {
+        const created = await categoryService.createCategory(catData);
+        setCategories((prev) => [...prev, created]);
+      }
+    } catch (err: any) {
+      alert(err.message || 'Erreur lors de l’enregistrement de la catégorie.');
+    }
+  };
 
-      const goal = prev.savingsGoals[goalIndex];
-      const milestoneIndex = goal.milestones.findIndex((m) => m.id === milestoneId);
-      if (milestoneIndex === -1) return prev;
-
-      const milestone = goal.milestones[milestoneIndex];
-      const isCompleting = !milestone.isCompleted;
-
-      const updatedMilestones = [...goal.milestones];
-      updatedMilestones[milestoneIndex] = {
-        ...milestone,
-        isCompleted: isCompleting,
-        completedAt: isCompleting ? new Date().toISOString() : null,
-      };
-
-      const updatedGoal: SavingsGoal = {
-        ...goal,
-        milestones: updatedMilestones,
-        currentAmount: isCompleting
-          ? goal.currentAmount + milestone.targetAmount
-          : Math.max(0, goal.currentAmount - milestone.targetAmount),
-      };
-
-      const updatedGoals = [...prev.savingsGoals];
-      updatedGoals[goalIndex] = updatedGoal;
-
-      return {
-        ...prev,
-        savingsGoals: updatedGoals,
-      };
+  const handleDeleteCategory = async (id: string) => {
+    setConfirmConfig({
+      isOpen: true,
+      title: 'Supprimer la catégorie',
+      message: 'Voulez-vous vraiment supprimer cette catégorie personnalisée ?',
+      confirmLabel: 'Supprimer',
+      variant: 'danger',
+      onConfirm: async () => {
+        try {
+          await categoryService.deleteCategory(id);
+          setCategories((prev) => prev.filter((c) => c.id !== id));
+          setConfirmConfig((prev) => ({ ...prev, isOpen: false }));
+        } catch (err: any) {
+          alert(err.message || 'Erreur lors de la suppression de la catégorie.');
+        }
+      },
     });
   };
 
   // Export CSV
   const handleExportCSV = () => {
-    exportToCSV(state.transactions, state.categories);
+    exportToCSV(transactions, categories);
   };
 
-  // Category Actions
-  const handleSaveCategory = (newCat: Category) => {
-    setState((prev) => {
-      const exists = prev.categories.some((c) => c.id === newCat.id);
-      return {
-        ...prev,
-        categories: exists
-          ? prev.categories.map((c) => (c.id === newCat.id ? newCat : c))
-          : [...prev.categories, newCat],
-      };
-    });
+  // User Profile Update
+  const handleUpdateUser = async (updatedUser: UserProfile) => {
+    try {
+      await updateProfile(updatedUser);
+    } catch (err: any) {
+      alert(err.message || 'Erreur de mise à jour du profil.');
+    }
   };
 
-  const handleDeleteCategory = (catId: string) => {
-    setConfirmConfig({
-      isOpen: true,
-      title: 'Supprimer la catégorie',
-      message:
-        'Êtes-vous sûr de vouloir supprimer cette catégorie ? Les transactions déjà créées conserveront leur référence.',
-      confirmLabel: 'Supprimer',
-      variant: 'danger',
-      icon: 'trash',
-      onConfirm: () => {
-        setState((prev: AppState) => ({
-          ...prev,
-          categories: prev.categories.filter((c) => c.id !== catId),
-        }));
-        setConfirmConfig((prev) => ({ ...prev, isOpen: false }));
-      },
-    });
-  };
-
-  const handleToggleCategory = (catId: string) => {
-    setState((prev: AppState) => ({
-      ...prev,
-      categories: prev.categories.map((c) =>
-        c.id === catId ? { ...c, isActive: !(c.isActive ?? true) } : c
-      ),
-    }));
-  };
-
-  // If no user profile exists, display RegisterView
-  if (!state.userProfile) {
-    return <RegisterView onRegister={handleRegister} />;
+  // 1. Initial Loading Screen
+  if (isAuthLoading) {
+    return (
+      <div
+        className="min-h-screen flex flex-col items-center justify-center"
+        style={{ background: 'var(--wf-bg)' }}
+      >
+        <div
+          className="w-14 h-14 rounded-2xl flex items-center justify-center text-white shadow-lg animate-pulse mb-4"
+          style={{ background: 'var(--wf-primary)' }}
+        >
+          <span className="font-extrabold text-2xl">W</span>
+        </div>
+        <p className="text-sm font-semibold tracking-wide" style={{ color: 'var(--wf-text)' }}>
+          Chargement de WealthFlow...
+        </p>
+      </div>
+    );
   }
 
-  // If user exists and screen is locked, display SecurityLockView
-  if (isLocked) {
+  // 2. Authentication Screen (Login / Register)
+  if (!isAuthenticated) {
+    return <RegisterView />;
+  }
+
+  // 3. Security PIN Lock Screen (if locked & user has PIN)
+  if (isLocked && user?.hasPin) {
     return (
       <SecurityLockView
-        user={state.userProfile}
+        user={user}
         onUnlock={() => setIsLocked(false)}
-        onResetAccount={handleResetAccount}
+        onResetAccount={logout}
       />
     );
   }
 
+  // Main Authenticated Application Views
   return (
-    <div className="min-h-screen flex flex-col transition-colors duration-200 overflow-x-hidden" style={{ background: 'var(--wf-bg)' }}>
-      {/* Desktop Sidebar Navigation */}
-      <div className="hidden md:block">
-        <Navbar
-          currentTab={currentTab}
-          onSelectTab={setCurrentTab}
-          onOpenNotifications={() => setIsNotificationsOpen(true)}
-          onOpenSettings={() => setCurrentTab('settings')}
-          user={state.userProfile}
-          onLock={() => setIsLocked(true)}
-          unreadCount={unreadCount}
-        />
-      </div>
-
-      {/* Mobile Header */}
-      <MobileHeader
-        user={state.userProfile}
-        onOpenProfile={() => setIsProfileMenuOpen(true)}
-        onOpenSettings={() => setCurrentTab('settings')}
-        onOpenNotifications={() => setIsNotificationsOpen(true)}
-        onLock={() => setIsLocked(true)}
+    <div
+      className="min-h-screen flex flex-col antialiased text-slate-900 transition-colors duration-200"
+      style={{ background: 'var(--wf-bg)', color: 'var(--wf-text)' }}
+    >
+      {/* Desktop / Tablet Navbar */}
+      <Navbar
+        currentTab={currentTab}
+        onSelectTab={setCurrentTab}
+        currentMonthKey={currentMonthKey}
+        onChangeMonth={setCurrentMonthKey}
         unreadCount={unreadCount}
+        onOpenNotifications={() => setIsNotificationsOpen(true)}
+        userProfile={user || undefined}
+        onLogout={logout}
       />
 
-      {/* Main Content Area — sidebar offset on desktop */}
-      <main className="flex-1 min-w-0 md:pl-[72px] lg:pl-64 flex flex-col">
-        {/* Screen 1: Wealth Tab */}
+      {/* Mobile Top Header */}
+      <MobileHeader
+        currentTab={currentTab}
+        currentMonthKey={currentMonthKey}
+        onChangeMonth={setCurrentMonthKey}
+        unreadCount={unreadCount}
+        onOpenNotifications={() => setIsNotificationsOpen(true)}
+        userProfile={user || undefined}
+        onOpenProfileMenu={() => setIsProfileMenuOpen(true)}
+      />
+
+      {/* Main Container */}
+      <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 pb-24 md:pb-8">
+        {/* Sync loading indicator */}
+        {isDataLoading && (
+          <div className="mb-4 p-2.5 rounded-xl bg-orange-500/10 border border-orange-500/20 text-orange-600 text-xs font-semibold flex items-center justify-between animate-pulse">
+            <span>Synchronisation des données cloud...</span>
+          </div>
+        )}
+
+        {fetchError && (
+          <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-600 text-xs font-semibold flex items-center justify-between">
+            <span>{fetchError}</span>
+            <button onClick={loadUserData} className="underline hover:no-underline ml-2">
+              Réessayer
+            </button>
+          </div>
+        )}
+
         {currentTab === 'wealth' && (
           <WealthView
-            state={state}
+            state={appState}
             summary={summary}
             currentMonthKey={currentMonthKey}
             onNavigateTab={setCurrentTab}
@@ -464,198 +412,172 @@ export default function App() {
           />
         )}
 
-        {/* Screen: Add Expense Tab */}
         {currentTab === 'add' && (
           <AddExpenseView
-            state={state}
+            state={appState}
             onSaveTransaction={handleSaveTransaction}
-            onNavigateTab={setCurrentTab}
-            onOpenTransactionModal={handleOpenTransactionModal}
+            onSuccess={() => setCurrentTab('wealth')}
           />
         )}
 
-        {/* Screen: History/Transactions Tab */}
         {currentTab === 'history' && (
           <TransactionsView
-            state={state}
+            state={appState}
             currentMonthKey={currentMonthKey}
-            onOpenTransactionModal={handleOpenTransactionModal}
-            onRequestDeleteTx={handleRequestDeleteTransaction}
+            onOpenTransactionModal={(tx) => {
+              setEditingTransaction(tx || null);
+              setIsTxModalOpen(true);
+            }}
+            onRequestDeleteTx={handleDeleteTransaction}
             onExportCSV={handleExportCSV}
           />
         )}
 
-        {/* Screen: Budget Tab */}
         {currentTab === 'budget' && (
           <BudgetView
-            state={state}
+            state={appState}
             currentMonthKey={currentMonthKey}
             summary={summary}
-            onChangeMonth={setCurrentMonthKey}
             onOpenBudgetModal={() => setIsBudgetModalOpen(true)}
           />
         )}
 
-
-        {/* Screen: Goals/Epargne Tab */}
         {currentTab === 'goals' && (
           <GoalsView
-            state={state}
-            currentMonthKey={currentMonthKey}
-            summary={summary}
-            onAllocateSavings={handleAllocateSavings}
-            onToggleMilestone={handleToggleMilestone}
+            state={appState}
+            onSaveGoal={handleSaveGoal}
+            onContribute={handleContributeSavings}
+            onDeleteGoal={handleDeleteGoal}
           />
         )}
 
-        {/* Screen: Categories Tab */}
-        {currentTab === 'categories' && (
-          <CategoriesView
-            state={state}
-            onNavigateTab={setCurrentTab}
-            onSaveCategory={handleSaveCategory}
-            onDeleteCategory={handleDeleteCategory}
-            onToggleCategory={handleToggleCategory}
-          />
-        )}
-
-        {/* Screen: Analytics Tab */}
         {currentTab === 'analytics' && (
           <AnalyticsView
-            state={state}
+            state={appState}
             currentMonthKey={currentMonthKey}
-            summary={summary}
+            onNavigateTab={setCurrentTab}
           />
         )}
 
-        {/* Screen: Investment Advisor Tab */}
         {currentTab === 'invest' && (
           <InvestmentAdvisorView
-            state={state}
+            state={appState}
             currentMonthKey={currentMonthKey}
             summary={summary}
             onNavigateTab={setCurrentTab}
           />
         )}
 
-        {/* Screen: Settings Tab */}
+        {currentTab === 'categories' && (
+          <CategoriesView
+            state={appState}
+            onSaveCategory={handleSaveCategory}
+            onDeleteCategory={handleDeleteCategory}
+          />
+        )}
+
         {currentTab === 'settings' && (
           <SettingsView
-            state={state}
-            userProfile={state.userProfile}
+            state={appState}
+            userProfile={user || undefined}
             onUpdateUser={handleUpdateUser}
-            onLogout={handleLogout}
-            onResetAccount={handleResetAccount}
-            onRestoreState={(newState) => setState(newState)}
-            onResetData={() => {
-              setState((prev) => ({
-                ...prev,
-                transactions: [],
-                savingsGoals: [],
-                budgets: {},
-              }));
-            }}
+            onLogout={logout}
             onLockSession={() => setIsLocked(true)}
-            onRequestConfirm={(config) => {
-              setConfirmConfig({
-                isOpen: true,
-                title: config.title,
-                message: config.message,
-                confirmLabel: config.confirmLabel,
-                variant: config.variant,
-                onConfirm: () => {
-                  config.onConfirm();
-                  setConfirmConfig((prev) => ({ ...prev, isOpen: false }));
-                },
-              });
+            onRestoreState={(newState) => {
+              setTransactions(newState.transactions || []);
+              setCategories(newState.categories || DEFAULT_CATEGORIES);
+              setBudgets(newState.budgets || {});
+              setSavingsGoals(newState.savingsGoals || []);
             }}
+            onRequestConfirm={(cfg) => setConfirmConfig({ ...cfg, isOpen: true })}
           />
         )}
       </main>
 
-      {/* Modals */}
-      {isTxModalOpen && (
-        <TransactionModal
-          isOpen={isTxModalOpen}
-          onClose={() => setIsTxModalOpen(false)}
-          onSave={handleSaveTransaction}
-          editingTransaction={editingTransaction}
-          state={state}
-        />
-      )}
-
-      {isBudgetModalOpen && (
-        <BudgetModal
-          isOpen={isBudgetModalOpen}
-          onClose={() => setIsBudgetModalOpen(false)}
-          onSave={handleSaveBudget}
-          currentMonthKey={currentMonthKey}
-          state={state}
-        />
-      )}
-
-      {isNotificationsOpen && (
-        <NotificationsModal
-          isOpen={isNotificationsOpen}
-          onClose={() => setIsNotificationsOpen(false)}
-          state={state}
-          summary={summary}
-          onNavigateTab={setCurrentTab}
-          notifications={state.notifications}
-          onMarkRead={handleMarkNotificationRead}
-          onMarkAllRead={handleMarkAllNotificationsRead}
-          onDelete={handleDeleteNotification}
-          onClearAll={handleClearNotifications}
-        />
-      )}
-
-      {confirmConfig.isOpen && (
-        <ConfirmModal
-          isOpen={confirmConfig.isOpen}
-          onClose={() => setConfirmConfig((prev: typeof confirmConfig) => ({ ...prev, isOpen: false }))}
-          onConfirm={confirmConfig.onConfirm}
-          title={confirmConfig.title}
-          message={confirmConfig.message}
-          confirmLabel={confirmConfig.confirmLabel}
-          cancelLabel={confirmConfig.cancelLabel}
-          variant={confirmConfig.variant}
-          icon={confirmConfig.icon}
-        />
-      )}
-
       {/* Mobile Bottom Navigation */}
-      <MobileBottomNav
-        currentTab={currentTab}
-        onSelectTab={setCurrentTab}
-      />
+      <MobileBottomNav currentTab={currentTab} onSelectTab={setCurrentTab} />
 
-      {/* Floating Action Button */}
-      <FloatingActionButton
-        onClick={() => setIsAddMenuOpen(true)}
-        ariaLabel="Ajouter"
-      />
+      {/* Floating Action Button & Menu (Mobile) */}
+      <FloatingActionButton isOpen={isAddMenuOpen} onToggle={() => setIsAddMenuOpen(!isAddMenuOpen)} />
 
-      {/* Add Action Menu */}
       <AddActionMenu
         isOpen={isAddMenuOpen}
         onClose={() => setIsAddMenuOpen(false)}
         onSelectAction={(action) => {
-          if (action === 'expense' || action === 'income') {
-            setCurrentTab('add');
+          setIsAddMenuOpen(false);
+          if (action === 'transaction') {
+            setEditingTransaction(null);
+            setIsTxModalOpen(true);
+          } else if (action === 'budget') {
+            setIsBudgetModalOpen(true);
+          } else if (action === 'goal') {
+            setCurrentTab('goals');
           }
-          // Handle other actions as needed
         }}
       />
 
-      {/* Mobile Profile Menu (mobile-only, opens from avatar) */}
+      {/* Mobile Profile Menu Modal */}
       <MobileProfileMenu
         isOpen={isProfileMenuOpen}
         onClose={() => setIsProfileMenuOpen(false)}
-        user={state.userProfile}
-        unreadCount={unreadCount}
-        onNavigate={setCurrentTab}
-        onOpenNotifications={() => setIsNotificationsOpen(true)}
-        onLock={() => setIsLocked(true)}
+        userProfile={user || undefined}
+        onSelectTab={(tab) => {
+          setIsProfileMenuOpen(false);
+          setCurrentTab(tab);
+        }}
+        onLogout={() => {
+          setIsProfileMenuOpen(false);
+          logout();
+        }}
+      />
+
+      {/* Transaction Modal (Add / Edit) */}
+      <TransactionModal
+        isOpen={isTxModalOpen}
+        onClose={() => {
+          setIsTxModalOpen(false);
+          setEditingTransaction(null);
+        }}
+        onSave={handleSaveTransaction}
+        transaction={editingTransaction}
+        categories={categories}
+      />
+
+      {/* Budget Modal */}
+      <BudgetModal
+        isOpen={isBudgetModalOpen}
+        onClose={() => setIsBudgetModalOpen(false)}
+        currentMonthKey={currentMonthKey}
+        currentBudget={budgets[currentMonthKey]}
+        categories={categories}
+        onSave={handleSaveBudget}
+      />
+
+      {/* Notifications Modal */}
+      <NotificationsModal
+        isOpen={isNotificationsOpen}
+        onClose={() => setIsNotificationsOpen(false)}
+        notifications={notifications}
+        onMarkAsRead={handleMarkNotificationRead}
+        onMarkAllAsRead={handleMarkAllNotificationsRead}
+        onDeleteNotification={handleDeleteNotification}
+        onNavigateTab={(tab) => {
+          setIsNotificationsOpen(false);
+          setCurrentTab(tab);
+        }}
+      />
+
+      {/* Confirmation Modal */}
+      <ConfirmModal
+        isOpen={confirmConfig.isOpen}
+        title={confirmConfig.title}
+        message={confirmConfig.message}
+        confirmLabel={confirmConfig.confirmLabel}
+        cancelLabel={confirmConfig.cancelLabel}
+        variant={confirmConfig.variant}
+        icon={confirmConfig.icon}
+        onConfirm={confirmConfig.onConfirm}
+        onCancel={() => setConfirmConfig((prev) => ({ ...prev, isOpen: false }))}
       />
     </div>
   );

@@ -1,0 +1,132 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String         @id @default(uuid())
+  email        String         @unique
+  nom          String
+  prenom       String
+  numero       String
+  passwordHash String
+  pinHash      String?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  transactions Transaction[]
+  categories   Category[]
+  budgets      Budget[]
+  savingsGoals SavingsGoal[]
+  notifications Notification[]
+  settings     UserSettings?
+}
+
+model Category {
+  id        String        @id @default(uuid())
+  userId    String?
+  user      User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  color     String
+  icon      String
+  type      String        // 'expense' | 'income' | 'both'
+  isDefault Boolean       @default(false)
+  isActive  Boolean       @default(true)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  transactions Transaction[]
+
+  @@index([userId])
+}
+
+model Transaction {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount     Float
+  type       String   // 'expense' | 'income'
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  date       String   // 'YYYY-MM-DD'
+  note       String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([userId])
+  @@index([userId, date])
+}
+
+model Budget {
+  id              String   @id @default(uuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  month           String   // 'YYYY-MM'
+  totalBudget     Float
+  savingsTarget   Float    @default(0)
+  categoryBudgets Json?    // { "cat-id": 50000, ... }
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([userId, month])
+  @@index([userId])
+}
+
+model SavingsGoal {
+  id            String             @id @default(uuid())
+  userId        String
+  user          User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  month         String             @default("global") // 'YYYY-MM' or 'global'
+  title         String
+  targetAmount  Float
+  currentAmount Float              @default(0)
+  deadline      String?
+  category      String?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  milestones    SavingsMilestone[]
+
+  @@index([userId])
+}
+
+model SavingsMilestone {
+  id            String      @id @default(uuid())
+  savingsGoalId String
+  savingsGoal   SavingsGoal @relation(fields: [savingsGoalId], references: [id], onDelete: Cascade)
+  title         String
+  targetAmount  Float
+  isCompleted   Boolean     @default(false)
+  completedAt   String?
+
+  @@index([savingsGoalId])
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String   // 'budget' | 'transaction' | 'savings' | 'strategy' | 'system'
+  title     String
+  message   String
+  source    String?
+  read      Boolean  @default(false)
+  tab       String?
+  amount    Float?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model UserSettings {
+  id                  String   @id @default(uuid())
+  userId              String   @unique
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  theme               String   @default("light")
+  currency            String   @default("FCFA")
+  securityLockEnabled Boolean  @default(false)
+  updatedAt           DateTime @updatedAt
+}

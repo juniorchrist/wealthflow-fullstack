@@ -20,7 +20,8 @@
         "./*"
       ]
     },
-    "allowImportingTsExtensions": true,
     "noEmit": true
-  }
+  },
+  "include": ["src/**/*"],
+  "exclude": ["backend", "dist", "node_modules"]
 }
