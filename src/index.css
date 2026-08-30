@@ -1,0 +1,557 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    /* ============================================================
+       WEALTHFLOW DESIGN TOKENS — UNIFIED
+       ============================================================ */
+
+    /* Brand Colors — CONSERVED #FF5330 */
+    --wf-primary: #FF5330;
+    --wf-primary-soft: rgba(255, 83, 48, 0.08);
+    --wf-primary-hover: rgba(255, 83, 48, 0.12);
+    --wf-primary-strong: rgba(255, 83, 48, 0.18);
+
+    /* Surface Colors — CONSERVED */
+    --wf-bg: #FBF9F4;
+    --wf-surface: #FFFFFF;
+    --wf-surface-soft: #F0EBE1;
+    --wf-surface-elevated: #FFFFFF;
+
+    /* Text Colors — CONSERVED */
+    --wf-text: #18181B;
+    --wf-text-secondary: #635A52;
+    --wf-text-tertiary: #8C827A;
+    --wf-text-subtle: #9A9590;
+
+    /* Border Colors — CONSERVED */
+    --wf-border: #EAE5DC;
+    --wf-border-strong: #D8D3CA;
+
+    /* Functional Colors — CONSERVED */
+    --wf-success: #2E7D32;
+    --wf-success-soft: #E8F5E9;
+    --wf-success-bg: #E8F5E9;
+    --wf-warning: #F57C00;
+    --wf-warning-soft: #FFF3E0;
+    --wf-warning-bg: #FFF3E0;
+    --wf-danger: #D32F2F;
+    --wf-danger-soft: #FFEBEE;
+    --wf-danger-bg: #FFEBEE;
+    --wf-info: #1976D2;
+    --wf-info-soft: #E3F2FD;
+    --wf-info-bg: #E3F2FD;
+
+    /* Border Radius */
+    --wf-radius-sm: 10px;
+    --wf-radius-md: 14px;
+    --wf-radius-lg: 18px;
+    --wf-radius-xl: 22px;
+    --wf-radius-2xl: 28px;
+    --wf-radius-full: 9999px;
+
+    /* Shadows */
+    --wf-shadow-soft: 0 2px 10px rgba(24, 24, 27, 0.04);
+    --wf-shadow-medium: 0 4px 18px rgba(24, 24, 27, 0.06);
+    --wf-shadow-elevated: 0 8px 30px rgba(24, 24, 27, 0.08);
+    --wf-shadow-mobile-nav: 0 8px 24px rgba(24, 24, 27, 0.08);
+
+    /* Transitions */
+    --wf-transition-fast: 150ms cubic-bezier(0.22, 1, 0.36, 1);
+    --wf-transition-normal: 220ms cubic-bezier(0.22, 1, 0.36, 1);
+    --wf-transition-slow: 320ms cubic-bezier(0.22, 1, 0.36, 1);
+
+    /* Z-Index Layers */
+    --wf-z-mobile-nav: 50;
+    --wf-z-fab: 51;
+    --wf-z-mobile-sheet: 60;
+    --wf-z-modal: 70;
+    --wf-z-tooltip: 80;
+  }
+
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+
+  html, body {
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background-color: var(--wf-bg);
+    color: var(--wf-text);
+    min-height: 100%;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
+  }
+}
+
+/* ============================================================
+   SCROLLBARS
+   ============================================================ */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--wf-border); border-radius: 9999px; }
+::-webkit-scrollbar-thumb:hover { background: var(--wf-text-tertiary); }
+
+/* ============================================================
+   CARD COMPONENTS
+   ============================================================ */
+
+.liquid-card {
+  background: var(--wf-surface);
+  border: 1px solid var(--wf-border);
+  border-radius: var(--wf-radius-md);
+  box-shadow: var(--wf-shadow-soft);
+}
+
+.liquid-card-elevated {
+  background: var(--wf-surface);
+  border: 1px solid var(--wf-border);
+  border-radius: var(--wf-radius-lg);
+  box-shadow: var(--wf-shadow-elevated);
+}
+
+/* ============================================================
+   BUTTONS
+   ============================================================ */
+
+.btn-primary {
+  background: var(--wf-primary);
+  color: white;
+  border: none;
+  border-radius: var(--wf-radius-md);
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform var(--wf-transition-fast), box-shadow var(--wf-transition-fast);
+}
+
+.btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(255, 83, 48, 0.28);
+}
+
+.btn-primary:active {
+  transform: scale(0.97);
+}
+
+.btn-ghost {
+  background: transparent;
+  border: 1.5px solid var(--wf-border);
+  border-radius: var(--wf-radius-md);
+  color: var(--wf-text-secondary);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--wf-transition-fast), color var(--wf-transition-fast);
+}
+
+.btn-ghost:hover {
+  background: var(--wf-surface-soft);
+  color: var(--wf-text);
+}
+
+/* ============================================================
+   PROGRESS BARS
+   ============================================================ */
+
+.liquid-progress {
+  height: 6px;
+  background: var(--wf-surface-soft);
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.liquid-progress-fill {
+  height: 100%;
+  background: var(--wf-primary);
+  border-radius: 9999px;
+  transition: width var(--wf-transition-normal);
+}
+
+/* ============================================================
+   RESPONSIVE PAGE CONTAINER (100% visible, no right-clipping)
+   ============================================================ */
+
+.wf-page {
+  width: 100%;
+  max-width: 100%;
+  padding: 16px;
+  padding-bottom: calc(120px + env(safe-area-inset-bottom));
+  margin: 0 auto;
+}
+
+@media (min-width: 640px) {
+  .wf-page {
+    padding: 20px 24px calc(120px + env(safe-area-inset-bottom)) 24px;
+    max-width: 620px;
+  }
+}
+
+@media (min-width: 768px) {
+  .wf-page {
+    padding: 28px 32px 48px 32px;
+    max-width: 920px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .wf-page {
+    padding: 32px 36px 56px 36px;
+    max-width: 980px;
+  }
+}
+
+/* ============================================================
+   TYPOGRAPHY RESPONSIVE
+   ============================================================ */
+
+.wf-title-page {
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--wf-text);
+}
+
+@media (min-width: 768px) {
+  .wf-title-page {
+    font-size: 28px;
+  }
+}
+
+.wf-title-section {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--wf-text);
+}
+
+@media (min-width: 768px) {
+  .wf-title-section {
+    font-size: 17px;
+  }
+}
+
+.wf-amount-display {
+  font-size: 30px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  color: var(--wf-text);
+}
+
+@media (min-width: 768px) {
+  .wf-amount-display {
+    font-size: 36px;
+  }
+}
+
+.wf-amount-medium {
+  font-size: 18px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+@media (min-width: 768px) {
+  .wf-amount-medium {
+    font-size: 20px;
+  }
+}
+
+/* ============================================================
+   MOBILE HEADER — Glassmorphism (< 768px)
+   ============================================================ */
+
+.mobile-header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  padding: 10px 16px;
+  min-height: 54px;
+  background: rgba(251, 249, 244, 0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(234, 229, 220, 0.8);
+}
+
+/* ============================================================
+   MOBILE BOTTOM NAVIGATION — Capsule Flottante (< 768px)
+   ============================================================ */
+
+.mobile-bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: var(--wf-z-mobile-nav);
+  padding: 8px 14px;
+  padding-bottom: calc(8px + env(safe-area-inset-bottom));
+  pointer-events: none;
+}
+
+.mobile-nav-capsule {
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(234, 229, 220, 0.9);
+  box-shadow: var(--wf-shadow-mobile-nav);
+  border-radius: 24px;
+  max-width: 360px;
+  margin: 0 auto;
+  pointer-events: all;
+}
+
+.mobile-nav-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 42px;
+  padding: 0 8px;
+  border-radius: 14px;
+  color: var(--wf-text-tertiary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  flex: 1;
+}
+
+.mobile-nav-item.active {
+  background: var(--wf-primary-soft);
+  color: var(--wf-primary);
+  flex: 1.3;
+}
+
+.mobile-nav-item .nav-label {
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  display: none;
+}
+
+.mobile-nav-item.active .nav-label {
+  display: inline-block;
+}
+
+/* ============================================================
+   FAB — Floating Action Button (< 768px)
+   ============================================================ */
+
+.mobile-fab {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--wf-primary);
+  color: white;
+  border: none;
+  box-shadow: 0 4px 16px rgba(255, 83, 48, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform var(--wf-transition-fast), box-shadow var(--wf-transition-fast);
+  flex-shrink: 0;
+}
+
+.mobile-fab:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(255, 83, 48, 0.4);
+}
+
+.mobile-fab:active {
+  transform: scale(0.94);
+}
+
+/* Ensure flex-centering of the FAB icon always wins over the generic
+   .mobile-only { display: block } rule declared later in this file
+   (both are single-class selectors, so without this the source order
+   made .mobile-only override .mobile-fab's display:flex, pushing the
+   "+" icon out of center). */
+.mobile-fab.mobile-only {
+  display: flex;
+}
+
+/* ============================================================
+   BOTTOM SHEET
+   ============================================================ */
+
+.mobile-bottom-sheet {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: var(--wf-z-mobile-sheet);
+  background: var(--wf-surface);
+  border-top-left-radius: 24px;
+  border-top-right-radius: 24px;
+  padding: 8px 20px calc(24px + env(safe-area-inset-bottom)) 20px;
+  max-height: 88vh;
+  overflow-y: auto;
+  box-shadow: 0 -4px 40px rgba(24, 24, 27, 0.12);
+  border-top: 1px solid var(--wf-border);
+}
+
+.mobile-bottom-sheet-handle {
+  width: 36px;
+  height: 4px;
+  background: var(--wf-border-strong);
+  border-radius: 9999px;
+  margin: 8px auto 16px auto;
+}
+
+.mobile-bottom-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: calc(var(--wf-z-mobile-sheet) - 1);
+  background: rgba(24, 24, 27, 0.35);
+  backdrop-filter: blur(2px);
+}
+
+/* ============================================================
+   TOUCH TARGETS
+   ============================================================ */
+
+.touch-target {
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ============================================================
+   RESPONSIVE VISIBILITY UTILITIES
+   ============================================================ */
+
+.mobile-only {
+  display: block;
+}
+
+@media (min-width: 768px) {
+  .mobile-only {
+    display: none !important;
+  }
+}
+
+.desktop-only {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .desktop-only {
+    display: block;
+  }
+}
+
+/* ============================================================
+   FORM INPUTS — Responsive & High-Performance
+   ============================================================ */
+
+.wf-input {
+  width: 100%;
+  height: 42px;
+  padding: 8px 14px;
+  border-radius: var(--wf-radius-md);
+  border: 1.5px solid var(--wf-border);
+  background: var(--wf-surface-soft);
+  color: var(--wf-text);
+  font-size: 13.5px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color var(--wf-transition-fast), box-shadow var(--wf-transition-fast);
+}
+
+.wf-input:focus {
+  border-color: var(--wf-primary);
+  box-shadow: 0 0 0 3px rgba(255, 83, 48, 0.1);
+  background: var(--wf-surface);
+}
+
+.wf-input::placeholder {
+  color: var(--wf-text-tertiary);
+}
+
+.wf-input.wf-input-with-icon,
+.wf-input-with-icon {
+  padding-left: 38px !important;
+}
+
+/* .wf-input sets "padding" as a shorthand, which (being an unlayered
+   rule) beats Tailwind's layered pl-9 / pr-10 utilities regardless of
+   source order. That collapsed the left padding back down to 14px on
+   every icon-prefixed field, so typed text and placeholders rendered
+   almost underneath the icon (registration form, transaction form).
+   These two rules restore the intended spacing. */
+.wf-input.pl-9 {
+  padding-left: 38px !important;
+}
+
+.wf-input.pr-10 {
+  padding-right: 40px !important;
+}
+
+.wf-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--wf-text-secondary);
+  margin-bottom: 8px;
+}
+
+/* .wf-label sets margin-bottom via an unlayered rule, which beats the
+   layered Tailwind "mb-0"/"mb-1" utilities some labels use to fold their
+   spacing into a parent flex row (PIN label in RegisterView, target-amount
+   label in GoalsView). Without this override the label kept its own 5px
+   margin on top of the row's margin, so labels and hint text misaligned
+   and — combined with the small base value — labels read as glued to the
+   field below in Register, Budget and Goal forms. */
+.wf-label.mb-0 {
+  margin-bottom: 0 !important;
+}
+
+/* ============================================================
+   MODAL — Responsive
+   ============================================================ */
+
+.wf-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--wf-z-modal);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0;
+  background: rgba(24, 24, 27, 0.45);
+  backdrop-filter: blur(4px);
+}
+
+@media (min-width: 640px) {
+  .wf-modal-backdrop {
+    align-items: center;
+    padding: 20px;
+  }
+}
+
+.wf-modal-card {
+  width: 100%;
+  background: var(--wf-surface);
+  border: 1px solid var(--wf-border);
+  border-radius: 24px 24px 0 0;
+  padding: 8px 20px calc(24px + env(safe-area-inset-bottom)) 20px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 -8px 40px rgba(24, 24, 27, 0.12);
+}
+
+@media (min-width: 640px) {
+  .wf-modal-card {
+    max-width: 440px;
+    border-radius: 20px;
+    padding: 24px;
+    max-height: 88vh;
+  }
+}
+
+img, video, svg, canvas, iframe {
+  max-width: 100%;
+  height: auto;
+}

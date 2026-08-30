@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>WealthFlow — Gestion Financière Personnelle</title>
+    <meta name="description" content="Tableau de bord financier personnel moderne en FCFA avec plan d'épargne intelligent." />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+      /* Inline on purpose: must paint instantly, before the JS bundle
+         (and the app's own stylesheet) has finished downloading. */
+      #app-loader {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 16px;
+        background: #FBF9F4;
+        font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+        transition: opacity 0.35s ease, visibility 0.35s ease;
+      }
+
+      #app-loader.app-loader-hide {
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+      }
+
+      #app-loader .app-loader-mark {
+        width: 56px;
+        height: 56px;
+        border-radius: 18px;
+        background: #FF5330;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 8px 24px rgba(255, 83, 48, 0.28);
+        animation: app-loader-pulse 1.4s ease-in-out infinite;
+      }
+
+      #app-loader .app-loader-mark span {
+        color: #FFFFFF;
+        font-weight: 800;
+        font-size: 24px;
+        letter-spacing: -0.02em;
+      }
+
+      #app-loader .app-loader-title {
+        font-weight: 700;
+        font-size: 18px;
+        letter-spacing: -0.01em;
+        color: #18181B;
+      }
+
+      #app-loader .app-loader-title span {
+        color: #FF5330;
+      }
+
+      #app-loader .app-loader-bar {
+        width: 120px;
+        height: 3px;
+        border-radius: 999px;
+        background: #EAE5DC;
+        overflow: hidden;
+      }
+
+      #app-loader .app-loader-bar::after {
+        content: '';
+        display: block;
+        width: 40%;
+        height: 100%;
+        border-radius: 999px;
+        background: #FF5330;
+        animation: app-loader-slide 1.1s ease-in-out infinite;
+      }
+
+      @keyframes app-loader-pulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.08); }
+      }
+
+      @keyframes app-loader-slide {
+        0% { transform: translateX(-120%); }
+        100% { transform: translateX(320%); }
+      }
+    </style>
+  </head>
+  <body class="font-sans antialiased selection:bg-[#FF6842] selection:text-white">
+    <div id="app-loader" aria-live="polite" aria-busy="true">
+      <div class="app-loader-mark"><span>W</span></div>
+      <p class="app-loader-title">Wealth<span>Flow</span></p>
+      <div class="app-loader-bar"></div>
+    </div>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+

@@ -1,0 +1,6 @@
+{
+  "name": "WealthFlow",
+  "description": "Gestion financière personnelle moderne en Franc CFA (FCFA) avec tirelires à cases à cocher sans échéance, plan de réduction annuelle des dépenses, suggestions d'investissement et allocations indicatives.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

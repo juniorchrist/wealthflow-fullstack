@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WealthFlow — Liquid Glass UI</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Polices Google : Plus Jakarta Sans -->
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+  </style>
+</head>
+<body class="bg-[#F6F5F2] text-slate-800 antialiased min-h-screen relative overflow-x-hidden pb-32">
+
+  <!-- 1. AMBIENT GLOWS (Halos lumineux vivants en arrière-plan) -->
+  <div class="fixed top-[-10%] left-[-10%] w-[500px] h-[500px] bg-cyan-400/20 rounded-full blur-[120px] pointer-events-none"></div>
+  <div class="fixed top-[30%] right-[-10%] w-[450px] h-[450px] bg-violet-400/20 rounded-full blur-[120px] pointer-events-none"></div>
+  <div class="fixed bottom-[-5%] left-[20%] w-[500px] h-[500px] bg-emerald-400/15 rounded-full blur-[120px] pointer-events-none"></div>
+
+  <!-- CONTAINER PRINCIPAL MOBILE/DESKTOP -->
+  <main class="max-w-md mx-auto px-4 pt-6 space-y-6 relative z-10">
+
+    <!-- TOP BAR (Liquid Glass) -->
+    <header class="flex items-center justify-between p-3 rounded-full backdrop-blur-2xl bg-white/70 border border-white/80 shadow-[0_4px_20px_rgba(0,0,0,0.03)]">
+      <div class="flex items-center space-x-3 pl-2">
+        <div class="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-600 to-cyan-400 flex items-center justify-center text-white font-bold text-sm shadow-md shadow-blue-500/20">
+          JD
+        </div>
+        <div>
+          <h2 class="text-sm font-bold text-slate-900 leading-tight">Junior Diploh</h2>
+          <p class="text-[11px] font-medium text-slate-500">Compte Premium</p>
+        </div>
+      </div>
+      <button class="w-10 h-10 rounded-full bg-white/80 border border-white flex items-center justify-center text-slate-600 hover:text-blue-600 transition shadow-sm">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+        </svg>
+      </button>
+    </header>
+
+    <!-- CARTE PRINCIPALE : SOLDE (Hero Glass Card) -->
+    <section class="p-6 rounded-[32px] backdrop-blur-xl bg-white/75 border border-white/90 shadow-[0_15px_35px_rgba(0,0,0,0.04)] relative overflow-hidden">
+      <!-- Gradient accent d'ambiance dans la carte -->
+      <div class="absolute -top-12 -right-12 w-36 h-36 bg-blue-500/10 rounded-full blur-2xl pointer-events-none"></div>
+
+      <div class="flex justify-between items-center mb-2">
+        <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Solde net disponible</span>
+        <span class="px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+          +12.4% ce mois
+        </span>
+      </div>
+
+      <!-- Chiffre d'impact -->
+      <div class="flex items-baseline space-x-2 my-2">
+        <h1 class="text-4xl font-extrabold text-slate-900 tracking-tight">324,000</h1>
+        <span class="text-lg font-bold text-blue-600">FCFA</span>
+      </div>
+
+      <!-- Métriques secondaires en Bento sub-grid -->
+      <div class="grid grid-cols-3 gap-2 mt-6 pt-5 border-t border-slate-100">
+        <div class="p-2.5 rounded-2xl bg-slate-50/60 border border-slate-100/80">
+          <p class="text-[10px] font-semibold text-slate-400">Entrées</p>
+          <p class="text-sm font-bold text-emerald-500 mt-0.5">+450 k</p>
+        </div>
+        <div class="p-2.5 rounded-2xl bg-slate-50/60 border border-slate-100/80">
+          <p class="text-[10px] font-semibold text-slate-400">Dépenses</p>
+          <p class="text-sm font-bold text-rose-500 mt-0.5">-126 k</p>
+        </div>
+        <div class="p-2.5 rounded-2xl bg-slate-50/60 border border-slate-100/80">
+          <p class="text-[10px] font-semibold text-slate-400">Moy./jour</p>
+          <p class="text-sm font-bold text-slate-700 mt-0.5">4,667</p>
+        </div>
+      </div>
+
+      <!-- Barre de progression vivante -->
+      <div class="mt-5 space-y-2">
+        <div class="flex justify-between text-xs font-semibold">
+          <span class="text-slate-500">Plafond budgétaire</span>
+          <span class="text-blue-600 font-bold">70% (180,000 FCFA)</span>
+        </div>
+        <div class="w-full h-3 rounded-full bg-slate-100 p-0.5 overflow-hidden">
+          <div class="h-full rounded-full bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-600 shadow-[0_0_12px_rgba(0,122,255,0.4)]" style="width: 70%"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- BOUTON D'ACTION VIVANT -->
+    <div class="grid grid-cols-2 gap-3">
+      <button class="py-3.5 px-5 rounded-2xl bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold text-sm shadow-lg shadow-blue-500/25 active:scale-95 transition flex items-center justify-center space-x-2">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" /></svg>
+        <span>Nouvelle opération</span>
+      </button>
+      <button class="py-3.5 px-5 rounded-2xl backdrop-blur-md bg-white/80 border border-white text-slate-700 font-bold text-sm shadow-sm active:scale-95 transition flex items-center justify-center space-x-2 hover:bg-white">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>
+        <span>Ajuster Budget</span>
+      </button>
+    </div>
+
+    <!-- CARTE VIVANTE SECONDION (TIRELIRE / BENTO) -->
+    <section class="p-5 rounded-[28px] backdrop-blur-xl bg-white/75 border border-white/90 shadow-[0_10px_30px_rgba(0,0,0,0.03)] space-y-4">
+      <div class="flex justify-between items-center">
+        <div class="flex items-center space-x-2.5">
+          <div class="p-2 rounded-xl bg-amber-500/10 text-amber-600 border border-amber-500/20">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+          </div>
+          <h3 class="font-bold text-slate-900 text-sm">Objectif Épargne</h3>
+        </div>
+        <span class="text-xs font-bold text-blue-600 hover:underline cursor-pointer">Gérer &rarr;</span>
+      </div>
+
+      <div class="p-4 rounded-2xl bg-gradient-to-r from-violet-500/10 via-indigo-500/5 to-transparent border border-violet-500/15 flex items-center justify-between">
+        <div>
+          <p class="text-xs font-bold text-violet-900">Tirelire Projet Vacances</p>
+          <p class="text-xs font-medium text-slate-500 mt-0.5">20,000 / 50,000 FCFA</p>
+        </div>
+        <div class="w-12 h-12 rounded-full bg-white border border-violet-200 flex items-center justify-center font-extrabold text-xs text-violet-600 shadow-sm">
+          40%
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ========================================================= -->
+  <!-- 2. NAVBAR BOTTOM : FLOATING LIQUID GLASS PILL (Style iOS) -->
+  <!-- ========================================================= -->
+  <nav class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center space-x-3">
+    
+    <!-- CAPSULE PRINCIPALE -->
+    <div class="flex items-center px-2 py-2 rounded-full backdrop-blur-2xl bg-white/70 border border-white/90 shadow-[0_12px_40px_rgba(0,0,0,0.08)]">
+      
+      <!-- ITEM ACTIF (Bulle bleue lumineuse) -->
+      <button class="relative px-4 py-2 rounded-full flex items-center space-x-2 text-blue-600 font-bold text-xs transition">
+        <!-- Glow Flouté arrière-plan -->
+        <span class="absolute inset-0 rounded-full bg-gradient-to-r from-cyan-400 to-blue-600 opacity-20 blur-sm"></span>
+        <!-- Fond de la pilule active -->
+        <span class="absolute inset-0 rounded-full bg-white/90 border border-blue-200/50 shadow-sm"></span>
+        <!-- Contenu -->
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 relative z-10 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
+        <span class="relative z-10">Aperçu</span>
+      </button>
+
+      <!-- ITEM INACTIF 1 -->
+      <button class="px-4 py-2 rounded-full flex items-center space-x-1 text-slate-500 hover:text-slate-900 transition font-semibold text-xs">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
+        <span class="hidden sm:inline">Investir</span>
+      </button>
+
+      <!-- ITEM INACTIF 2 -->
+      <button class="px-4 py-2 rounded-full flex items-center space-x-1 text-slate-500 hover:text-slate-900 transition font-semibold text-xs">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" /></svg>
+        <span class="hidden sm:inline">Budget</span>
+      </button>
+
+      <!-- ITEM INACTIF 3 -->
+      <button class="px-4 py-2 rounded-full flex items-center space-x-1 text-slate-500 hover:text-slate-900 transition font-semibold text-xs">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+        <span class="hidden sm:inline">Épargne</span>
+      </button>
+
+    </div>
+
+    <!-- BOUTON RECHERCHE SEPARÉ (Cercle Flottant Liquid Glass) -->
+    <button class="w-12 h-12 rounded-full backdrop-blur-2xl bg-white/80 border border-white/90 shadow-[0_12px_40px_rgba(0,0,0,0.08)] flex items-center justify-center text-slate-700 hover:text-blue-600 active:scale-90 transition">
+      <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+    </button>
+
+  </nav>
+
+</body>
+</html>
