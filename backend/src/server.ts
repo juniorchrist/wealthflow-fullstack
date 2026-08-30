@@ -7,35 +7,39 @@ import { prisma } from './config/prisma';
 
 const app = express();
 
-// CORS setup
+// ─── CORS ──────────────────────────────────────────────────────────────────────
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (like mobile apps, curl, or same-origin)
+      // Requêtes sans origin (curl, mobile, same-origin) toujours acceptées
       if (!origin) return callback(null, true);
-      if (
+
+      const allowed =
         config.corsOrigins.includes(origin) ||
         config.corsOrigins.includes('*') ||
-        origin.startsWith('http://localhost') ||
-        origin.startsWith('http://127.0.0.1')
-      ) {
-        return callback(null, true);
-      }
-      return callback(null, true); // Permissive in dev
+        (!config.isProduction && (
+          origin.startsWith('http://localhost') ||
+          origin.startsWith('http://127.0.0.1')
+        ));
+
+      if (allowed) return callback(null, true);
+      return callback(new Error(`CORS: Origin non autorisée → ${origin}`));
     },
     credentials: true,
   })
 );
 
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// Root endpoint info
-app.get('/', (req, res) => {
+// ─── ROOT ──────────────────────────────────────────────────────────────────────
+app.get('/', (_req, res) => {
   res.json({
-    message: '🚀 Serveur API WealthFlow en ligne et opérationnel !',
-    version: '2.0',
-    documentation: {
+    service: 'WealthFlow API',
+    version: '2.0.0',
+    status: 'online',
+    environment: config.nodeEnv,
+    endpoints: {
       health: '/api/health',
       auth: '/api/auth',
       transactions: '/api/transactions',
@@ -43,29 +47,42 @@ app.get('/', (req, res) => {
       categories: '/api/categories',
       savings: '/api/savings-goals',
       notifications: '/api/notifications',
+      settings: '/api/settings',
+      users: '/api/users',
     },
-    note: "Pour accéder à l'application web WealthFlow, ouvrez http://localhost:3000 dans votre navigateur.",
   });
 });
 
-// API Root
+// ─── API ROUTES ────────────────────────────────────────────────────────────────
 app.use('/api', apiRoutes);
 
-// Error Handling Middleware
+// ─── ERROR HANDLER ────────────────────────────────────────────────────────────
 app.use(errorHandler);
 
-const server = app.listen(config.port, () => {
-  console.log(`[WealthFlow Backend] Server running on http://localhost:${config.port}`);
-  console.log(`[WealthFlow Backend] Environment: ${config.nodeEnv}`);
+// ─── START ─────────────────────────────────────────────────────────────────────
+// Render injecte PORT dynamiquement. On écoute sur 0.0.0.0 pour être accessible.
+const server = app.listen(config.port, '0.0.0.0', () => {
+  console.log(`[WealthFlow] ✅ Serveur démarré sur le port ${config.port}`);
+  console.log(`[WealthFlow] 🌍 Environnement: ${config.nodeEnv}`);
+  if (!config.isProduction) {
+    console.log(`[WealthFlow] 🔗 URL locale: http://localhost:${config.port}`);
+  }
 });
 
-// Graceful shutdown
-process.on('SIGTERM', async () => {
-  console.log('[WealthFlow Backend] SIGTERM received. Closing gracefully...');
+// ─── GRACEFUL SHUTDOWN ─────────────────────────────────────────────────────────
+const shutdown = async (signal: string) => {
+  console.log(`[WealthFlow] ${signal} reçu. Fermeture gracieuse...`);
   await prisma.$disconnect();
   server.close(() => {
+    console.log('[WealthFlow] Serveur arrêté proprement.');
     process.exit(0);
   });
-});
+
+  // Force exit si la fermeture prend trop longtemps
+  setTimeout(() => process.exit(1), 10000);
+};
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
 
 export default app;

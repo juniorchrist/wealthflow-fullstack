@@ -1,0 +1,48 @@
+# ============================================================
+#  render.yaml — WealthFlow Backend (Render Web Service)
+#
+#  Déploiement automatique depuis GitHub.
+#  Build directory: backend/
+#  Runtime: Node.js 20
+# ============================================================
+
+services:
+  - type: web
+    name: wealthflow-api
+    runtime: node
+    region: frankfurt   # Choisir la région la plus proche (oregon, frankfurt, singapore...)
+    plan: free          # Peut être changé en "starter" pour éviter les cold starts
+
+    # ── Source ──────────────────────────────────────────────
+    rootDir: backend    # Render travaillera uniquement dans le dossier backend/
+
+    # ── Build ───────────────────────────────────────────────
+    buildCommand: npm install && npm run build
+
+    # ── Start ───────────────────────────────────────────────
+    startCommand: npm run start
+
+    # ── Variables d'environnement ───────────────────────────
+    # ⚠️  NE PAS mettre les valeurs secrètes ici → les configurer
+    #      directement dans l'interface Render > Environment
+    envVars:
+      - key: NODE_ENV
+        value: production
+
+      - key: DATABASE_URL
+        sync: false    # À renseigner manuellement dans Render Dashboard
+
+      - key: JWT_SECRET
+        sync: false    # À renseigner manuellement dans Render Dashboard
+
+      - key: JWT_EXPIRES_IN
+        value: 7d
+
+      - key: CORS_ORIGIN
+        sync: false    # Ex: https://wealthflow.netlify.app
+
+    # ── Health Check ────────────────────────────────────────
+    healthCheckPath: /api/health
+
+    # ── Auto Deploy ─────────────────────────────────────────
+    autoDeploy: true

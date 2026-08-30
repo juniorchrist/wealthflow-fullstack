@@ -1,0 +1,32 @@
+# ============================================================
+#  netlify.toml — WealthFlow Frontend (Netlify)
+# ============================================================
+
+[build]
+  # Dossier source du frontend (à la racine du repo)
+  base    = "."
+  command = "npm run build"
+  publish = "dist"
+
+# ── Redirections SPA ─────────────────────────────────────────────
+# React Router : toutes les routes renvoient vers index.html
+[[redirects]]
+  from   = "/*"
+  to     = "/index.html"
+  status = 200
+
+# ── Variables d'environnement de build ───────────────────────────
+# ⚠️  VITE_API_URL doit également être configurée dans
+#      Netlify Dashboard > Site Configuration > Environment Variables
+#      Ex: VITE_API_URL = https://wealthflow-api.onrender.com/api
+[build.environment]
+  NODE_VERSION = "20"
+
+# ── Headers de sécurité ──────────────────────────────────────────
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options        = "DENY"
+    X-Content-Type-Options = "nosniff"
+    X-XSS-Protection       = "1; mode=block"
+    Referrer-Policy        = "strict-origin-when-cross-origin"
