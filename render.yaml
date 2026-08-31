@@ -2,6 +2,7 @@
 #  render.yaml — WealthFlow Backend (Render Web Service)
 #
 #  Déploiement automatique depuis GitHub.
+#  Repository complet: wealthflow-frontend (contient backend/ et src/)
 #  Build directory: backend/
 #  Runtime: Node.js 20
 # ============================================================
@@ -14,10 +15,12 @@ services:
     plan: free          # Peut être changé en "starter" pour éviter les cold starts
 
     # ── Source ──────────────────────────────────────────────
+    # Le repository complet est wealthflow-frontend, le backend est dans backend/
     rootDir: backend    # Render travaillera uniquement dans le dossier backend/
 
     # ── Build ───────────────────────────────────────────────
     buildCommand: npm install && npm run build
+    # Le postinstall dans package.json génère automatiquement Prisma Client
 
     # ── Start ───────────────────────────────────────────────
     startCommand: npm run start
