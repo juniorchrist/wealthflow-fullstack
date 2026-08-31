@@ -3,7 +3,7 @@ import path from 'path';
 
 // En dev local, charger le fichier .env du dossier backend/
 // En production (Render), les variables sont directement dans l'environnement
-dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
 dotenv.config(); // fallback pour .env à la racine du cwd
 
 function requireEnv(key: string, fallback?: string): string {
