@@ -16,14 +16,14 @@ services:
 
     # ── Source ──────────────────────────────────────────────
     # Le repository complet est wealthflow-frontend, le backend est dans backend/
-    rootDir: backend    # Render travaillera uniquement dans le dossier backend/
+    # Pas de rootDir - on utilise cd dans les commandes
 
     # ── Build ───────────────────────────────────────────────
-    buildCommand: npm install && npm run build
+    buildCommand: cd backend && npm install && npm run build
     # Le postinstall dans package.json génère automatiquement Prisma Client
 
     # ── Start ───────────────────────────────────────────────
-    startCommand: npm run start
+    startCommand: cd backend && npm run start
 
     # ── Variables d'environnement ───────────────────────────
     # ⚠️  NE PAS mettre les valeurs secrètes ici → les configurer
