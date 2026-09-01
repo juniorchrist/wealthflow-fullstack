@@ -16,6 +16,9 @@
     "prisma:migrate": "prisma migrate deploy",
     "prisma:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
+    "db:test": "node test-db.js",
+    "test:api": "tsx tests/verify-api.ts",
+    "test:audit": "tsx tests/audit-full.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {

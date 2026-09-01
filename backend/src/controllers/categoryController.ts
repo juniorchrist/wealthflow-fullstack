@@ -15,9 +15,7 @@ export async function getCategories(
     const userId = req.user!.id;
 
     const categories = await prisma.category.findMany({
-      where: {
-        OR: [{ userId }, { userId: null }, { isDefault: true }],
-      },
+      where: { userId },
       orderBy: [{ isDefault: 'desc' }, { name: 'asc' }],
     });
 

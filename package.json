@@ -13,7 +13,9 @@
     "backend:start": "tsx backend/src/server.ts",
     "prisma:generate": "node ./backend/node_modules/prisma/build/index.js generate --schema=backend/prisma/schema.prisma",
     "prisma:push": "node ./backend/node_modules/prisma/build/index.js db push --schema=backend/prisma/schema.prisma --skip-generate",
-    "db:seed": "node ./backend/node_modules/tsx/dist/cli.mjs backend/prisma/seed.ts"
+    "db:seed": "node ./backend/node_modules/tsx/dist/cli.mjs backend/prisma/seed.ts",
+    "db:test": "node backend/test-db.js",
+    "test:api": "node ./backend/node_modules/tsx/dist/cli.mjs backend/tests/verify-api.ts"
   },
   "dependencies": {
     "@fortawesome/fontawesome-free": "^7.3.1",

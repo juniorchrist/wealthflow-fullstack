@@ -1,13 +1,12 @@
 import dotenv from 'dotenv';
 import path from 'path';
 
-// En dev local, charger le fichier .env du dossier backend/
-// En production (Render), les variables sont directement dans l'environnement
-dotenv.config({ path: path.resolve(__dirname, '../.env') });
-dotenv.config(); // fallback pour .env à la racine du cwd
+// Charge backend/.env (cwd = backend en dev et sur Render avec Root Directory = backend)
+dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 
 function requireEnv(key: string, fallback?: string): string {
-  const value = process.env[key] || fallback;
+  const isProduction = process.env.NODE_ENV === 'production';
+  const value = process.env[key] || (isProduction ? undefined : fallback);
   if (!value) {
     throw new Error(`[WealthFlow] Missing required environment variable: ${key}`);
   }

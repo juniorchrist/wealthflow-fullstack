@@ -277,7 +277,11 @@ export async function updatePin(
       return;
     }
 
-    if (user.pinHash && validatedData.oldPin) {
+    if (user.pinHash) {
+      if (!validatedData.oldPin) {
+        res.status(400).json({ error: 'Ancien code PIN requis pour modifier le PIN existant.' });
+        return;
+      }
       const isOldPinValid = await comparePassword(validatedData.oldPin, user.pinHash);
       if (!isOldPinValid) {
         res.status(400).json({ error: 'Ancien code PIN incorrect.' });

@@ -245,11 +245,15 @@ export async function contributeSavings(
     }
 
     const updated = await prisma.$transaction(async (tx) => {
-      const newAmount = goal.currentAmount + amount;
-
       if (milestoneId) {
-        await tx.savingsMilestone.updateMany({
+        const milestone = await tx.savingsMilestone.findFirst({
           where: { id: milestoneId, savingsGoalId: id },
+        });
+        if (!milestone) {
+          throw Object.assign(new Error('Jalon introuvable pour cet objectif.'), { status: 404 });
+        }
+        await tx.savingsMilestone.update({
+          where: { id: milestoneId },
           data: {
             isCompleted: true,
             completedAt: new Date().toISOString().split('T')[0],
@@ -259,7 +263,7 @@ export async function contributeSavings(
 
       return tx.savingsGoal.update({
         where: { id },
-        data: { currentAmount: newAmount },
+        data: { currentAmount: { increment: amount } },
         include: { milestones: true },
       });
     });

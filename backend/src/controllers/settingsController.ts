@@ -1,6 +1,7 @@
 import { Response, NextFunction } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth';
 import { prisma } from '../config/prisma';
+import { updateSettingsSchema } from '../validators/settingsValidator';
 
 export async function getSettings(
   req: AuthenticatedRequest,
@@ -38,7 +39,7 @@ export async function updateSettings(
 ): Promise<void> {
   try {
     const userId = req.user!.id;
-    const { theme, currency, securityLockEnabled } = req.body;
+    const { theme, currency, securityLockEnabled } = updateSettingsSchema.parse(req.body);
 
     const settings = await prisma.userSettings.upsert({
       where: { userId },

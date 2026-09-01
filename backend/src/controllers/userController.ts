@@ -47,9 +47,7 @@ export async function exportUserData(
           orderBy: { date: 'desc' },
         }),
         prisma.category.findMany({
-          where: {
-            OR: [{ userId }, { userId: null }, { isDefault: true }],
-          },
+          where: { userId },
         }),
         prisma.budget.findMany({
           where: { userId },

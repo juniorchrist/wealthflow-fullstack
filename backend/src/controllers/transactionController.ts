@@ -95,7 +95,7 @@ export async function createTransaction(
     const category = await prisma.category.findFirst({
       where: {
         id: validatedData.categoryId,
-        OR: [{ userId }, { userId: null }, { isDefault: true }],
+        userId,
       },
     });
 
@@ -154,7 +154,7 @@ export async function updateTransaction(
       const category = await prisma.category.findFirst({
         where: {
           id: validatedData.categoryId,
-          OR: [{ userId }, { userId: null }, { isDefault: true }],
+          userId,
         },
       });
       if (!category) {
