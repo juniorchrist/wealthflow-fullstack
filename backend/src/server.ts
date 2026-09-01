@@ -14,7 +14,6 @@ app.use(
       origin: string | undefined,
       callback: (err: Error | null, allow?: boolean) => void
     ) => {
-      // Requêtes sans origine (curl, mobile, etc.)
       if (!origin) {
         return callback(null, true);
       }
