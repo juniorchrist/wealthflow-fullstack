@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://wealthflow-fullstack-2.onrender.com';
 
 const TOKEN_KEY = 'wealthflow_auth_token';
 
