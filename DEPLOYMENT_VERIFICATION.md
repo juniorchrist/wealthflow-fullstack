@@ -66,10 +66,24 @@ curl https://wealthflow-api.onrender.com/
 Allez dans **Settings > Environment Variables** et vérifiez que les variables sont configurées :
 
 - [ ] `NODE_ENV` = `production`
-- [ ] `DATABASE_URL` = (PostgreSQL connection string)
-- [ ] `JWT_SECRET` = (your JWT secret)
+- [ ] `DATABASE_URL` = `postgresql://user:password@host/database`
+- [ ] `JWT_SECRET` = Un secret aléatoire sécurisé (ex: généré avec `node generate-jwt-secret.js`)
 - [ ] `JWT_EXPIRES_IN` = `7d`
-- [ ] `CORS_ORIGIN` = (votre URL frontend)
+- [ ] `CORS_ORIGIN` = `https://wealthflow.netlify.app` (ou votre URL frontend)
+
+### 📝 Générer un JWT_SECRET Sécurisé
+
+Exécutez cette commande localement pour générer une clé sécurisée :
+```bash
+node generate-jwt-secret.js
+```
+
+Cela affichera une clé aléatoire. **Copiez-la et collez-la comme valeur de `JWT_SECRET` dans Render Dashboard.**
+
+**⚠️ Attention** : 
+- Ne committez JAMAIS le JWT_SECRET dans Git
+- C'est une variable secrète - gardez-la privée
+- Chaque nouveau secret invalide les anciens tokens JWT
 
 Si des variables manquent, **le service ne démarrera pas correctement**.
 
