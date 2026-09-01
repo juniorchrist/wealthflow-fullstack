@@ -12,19 +12,12 @@ interface BudgetModalProps {
   monthKey?: string;
   currentBudget?: number;
   currentSavingsTarget?: number;
-  onSave?: (
-    monthKey: string,
-    budgetAmount: number,
-    createSavingsPlan?: boolean,
-    savingsTargetAmount?: number,
-    categoryBudgets?: Record<string, number>
-  ) => void;
-  onSaveBudget?: (
-    monthKey: string,
-    budgetAmount: number,
-    createSavingsPlan: boolean,
-    savingsTargetAmount: number
-  ) => void;
+  onSave?: (budgetData: {
+    month: string;
+    totalBudget: number;
+    savingsTarget?: number;
+    categoryBudgets?: Record<string, number>;
+  }) => void;
 }
 
 export const BudgetModal: React.FC<BudgetModalProps> = ({
@@ -36,13 +29,12 @@ export const BudgetModal: React.FC<BudgetModalProps> = ({
   currentBudget: propCurrentBudget,
   currentSavingsTarget: propSavingsTarget,
   onSave,
-  onSaveBudget,
 }) => {
   const effectiveMonthKey = propCurrentMonthKey || propMonthKey || '';
   const existingBudget =
     propCurrentBudget !== undefined
       ? propCurrentBudget
-      : state?.budgets[effectiveMonthKey]?.budgetAmount || 0;
+      : state?.budgets[effectiveMonthKey]?.totalBudget || 0;
 
   const [budgetAmount, setBudgetAmount] = useState<string>('');
   const [enableSavingsPlan, setEnableSavingsPlan] = useState<boolean>(true);
@@ -58,19 +50,29 @@ export const BudgetModal: React.FC<BudgetModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       setBudgetAmount(existingBudget > 0 ? existingBudget.toString() : '');
-      setEnableSavingsPlan(true);
-      setSavingsPercentage(15);
+      const existing = state?.budgets[effectiveMonthKey];
+      const existingSavingsTarget = propSavingsTarget ?? existing?.savingsTarget;
+      setEnableSavingsPlan(typeof existingSavingsTarget === 'number' && existingSavingsTarget > 0);
+      if (typeof existingSavingsTarget === 'number' && existingSavingsTarget > 0) {
+        const pct =
+          existingBudget > 0
+            ? Math.round((existingSavingsTarget / existingBudget) * 100)
+            : 15;
+        setSavingsPercentage(pct >= 1 && pct <= 100 ? pct : 15);
+      } else {
+        setSavingsPercentage(15);
+      }
       setError('');
-      const existing = state?.budgets[effectiveMonthKey]?.categoryBudgets || {};
+      const catBudgets = existing?.categoryBudgets || {};
       const catMap: Record<string, string> = {};
       expenseCategories.forEach((c) => {
-        const val = existing[c.id];
+        const val = catBudgets[c.id];
         catMap[c.id] = val && val > 0 ? val.toString() : '';
       });
       setCategoryBudgets(catMap);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, existingBudget, effectiveMonthKey]);
+  }, [isOpen, existingBudget, effectiveMonthKey, propSavingsTarget]);
 
   const numBudget = parseFloat(budgetAmount) || 0;
   const computedSavings = Math.round((numBudget * savingsPercentage) / 100);
@@ -93,17 +95,14 @@ export const BudgetModal: React.FC<BudgetModalProps> = ({
       if (n > 0) parsedCategoryBudgets[catId] = Math.round(n);
     });
 
-    const saveFn = onSave || onSaveBudget;
-    if (saveFn) {
-      saveFn(
-        effectiveMonthKey,
-        Math.round(numBudget),
-        enableSavingsPlan && computedSavings > 0,
-        Math.round(computedSavings),
-        parsedCategoryBudgets
-      );
+    if (onSave) {
+      onSave({
+        month: effectiveMonthKey,
+        totalBudget: Math.round(numBudget),
+        savingsTarget: enableSavingsPlan && computedSavings > 0 ? Math.round(computedSavings) : undefined,
+        categoryBudgets: parsedCategoryBudgets,
+      });
     }
-    onClose();
   };
 
   if (!isOpen) return null;

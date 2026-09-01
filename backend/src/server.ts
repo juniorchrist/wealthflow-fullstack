@@ -8,13 +8,15 @@ import { prisma } from './config/prisma';
 const app = express();
 
 // ─── CORS ──────────────────────────────────────────────────────────────────────
-// ─── CORS ──────────────────────────────────────────────────────────────────────
-const allowedOrigins = [
-  'https://wealthflow-ui.netlify.app',
-  'http://localhost:3000',
-  'http://localhost:3001',
-  'http://localhost:5173',
-];
+const allowedOrigins =
+  config.corsOrigins.length > 0
+    ? config.corsOrigins
+    : [
+        'https://wealthflow-ui.netlify.app',
+        'http://localhost:3000',
+        'http://localhost:3001',
+        'http://localhost:5173',
+      ];
 
 app.use(
   cors({
@@ -34,6 +36,7 @@ app.use(
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
+    optionsSuccessStatus: 204,
   })
 );
 // ─── BODY PARSER ───────────────────────────────────────────────────────────────
@@ -63,6 +66,14 @@ app.get('/', (_req: Request, res: Response) => {
 
 // ─── API ROUTES ────────────────────────────────────────────────────────────────
 app.use('/api', apiRoutes);
+
+// ─── 404 HANDLER ───────────────────────────────────────────────────────────────
+app.use((_req: Request, res: Response) => {
+  res.status(404).json({
+    error: 'Not Found',
+    message: 'Ressource introuvable sur l’API WealthFlow.',
+  });
+});
 
 // ─── ERROR HANDLER ────────────────────────────────────────────────────────────
 app.use(errorHandler);

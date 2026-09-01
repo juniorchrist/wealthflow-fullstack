@@ -4,6 +4,9 @@ import { UserProfile } from '../types';
 
 interface MobileHeaderProps {
   user?: UserProfile;
+  currentTab?: string;
+  currentMonthKey?: string;
+  onChangeMonth?: (month: string) => void;
   onOpenProfile?: () => void;
   onOpenSettings?: () => void;
   onOpenNotifications?: () => void;
@@ -13,6 +16,9 @@ interface MobileHeaderProps {
 
 export const MobileHeader: React.FC<MobileHeaderProps> = ({
   user,
+  currentTab,
+  currentMonthKey,
+  onChangeMonth,
   onOpenProfile,
   onOpenSettings,
   onOpenNotifications,

@@ -36,6 +36,7 @@ export const InvestmentAdvisorView: React.FC<InvestmentAdvisorViewProps> = ({
   currentMonthKey,
   summary,
   onNavigateTab,
+  onOpenBudgetModal,
   onSaveGoal,
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'allocations' | 'produits' | 'simulateur' | 'recommandations'>('recommandations');

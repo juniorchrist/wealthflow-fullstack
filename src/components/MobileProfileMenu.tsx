@@ -16,6 +16,7 @@ interface MobileProfileMenuProps {
   isOpen: boolean;
   onClose: () => void;
   user?: UserProfile;
+  userProfile?: UserProfile;
   unreadCount?: number;
   onNavigate: (tab: string) => void;
   onOpenNotifications?: () => void;
@@ -40,13 +41,15 @@ export const MobileProfileMenu: React.FC<MobileProfileMenuProps> = ({
   isOpen,
   onClose,
   user,
+  userProfile,
   unreadCount = 0,
   onNavigate,
   onOpenNotifications,
   onLock,
 }) => {
-  const userInitials = user
-    ? ((user.prenom?.[0] || '') + (user.nom?.[0] || '')).toUpperCase()
+  const currentUser = user || userProfile;
+  const userInitials = currentUser
+    ? ((currentUser.prenom?.[0] || '') + (currentUser.nom?.[0] || '')).toUpperCase()
     : '';
 
   const handleNavigate = (tab: string) => {
@@ -73,10 +76,10 @@ export const MobileProfileMenu: React.FC<MobileProfileMenuProps> = ({
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-bold truncate" style={{ color: 'var(--wf-text)' }}>
-            {user ? `${user.prenom} ${user.nom}` : 'Utilisateur'}
+            {currentUser ? `${currentUser.prenom} ${currentUser.nom}` : 'Utilisateur'}
           </p>
           <p className="text-xs truncate" style={{ color: 'var(--wf-text-tertiary)' }}>
-            {user?.email || 'Mon profil'}
+            {currentUser?.email || 'Mon profil'}
           </p>
         </div>
         <ChevronRight size={16} style={{ color: 'var(--wf-text-tertiary)' }} />

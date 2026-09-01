@@ -23,12 +23,14 @@ interface AnalyticsViewProps {
   state: AppState;
   currentMonthKey: string;
   summary: MonthSummary;
+  onNavigateTab?: (tab: string) => void;
 }
 
 export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
   state,
   currentMonthKey,
   summary,
+  onNavigateTab,
 }) => {
   const [chartView, setChartView] = useState<'categories' | 'monthly'>('categories');
 
@@ -130,6 +132,24 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
         </div>
 
         <div className="h-64 sm:h-72 w-full">
+          {chartView === 'categories' && categoryBreakdown.length === 0 ? (
+            <div className="h-full flex flex-col items-center justify-center text-center px-6">
+              <PieChart size={36} className="mb-3" style={{ color: 'var(--wf-text-tertiary)' }} />
+              <p className="text-sm font-semibold" style={{ color: 'var(--wf-text-secondary)' }}>
+                Aucune dépense ce mois-ci
+              </p>
+              <p className="text-xs mt-1" style={{ color: 'var(--wf-text-tertiary)' }}>
+                Ajoutez des transactions pour visualiser la répartition par catégorie.
+              </p>
+            </div>
+          ) : chartView === 'monthly' && monthlyTrend.every((d) => d['Dépenses'] === 0) ? (
+            <div className="h-full flex flex-col items-center justify-center text-center px-6">
+              <PieChart size={36} className="mb-3" style={{ color: 'var(--wf-text-tertiary)' }} />
+              <p className="text-sm font-semibold" style={{ color: 'var(--wf-text-secondary)' }}>
+                Aucune donnée sur les 6 derniers mois
+              </p>
+            </div>
+          ) : (
           <ResponsiveContainer width="100%" height="100%">
             {chartView === 'categories' ? (
               <BarChart
@@ -209,6 +229,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
               </AreaChart>
             )}
           </ResponsiveContainer>
+          )}
         </div>
       </div>
 

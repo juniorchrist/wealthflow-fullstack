@@ -22,7 +22,7 @@ export async function getBudgets(
         month: b.month,
         totalBudget: b.totalBudget,
         savingsTarget: b.savingsTarget,
-        categoryBudgets: b.categoryBudgets || {},
+        categoryBudgets: (b.categoryBudgets || {}) as Record<string, number>,
         createdAt: b.createdAt.getTime(),
         updatedAt: b.updatedAt.getTime(),
       };
@@ -61,7 +61,7 @@ export async function getBudgetByMonth(
       month: budget.month,
       totalBudget: budget.totalBudget,
       savingsTarget: budget.savingsTarget,
-      categoryBudgets: budget.categoryBudgets || {},
+      categoryBudgets: (budget.categoryBudgets || {}) as Record<string, number>,
       createdAt: budget.createdAt.getTime(),
       updatedAt: budget.updatedAt.getTime(),
     });
@@ -104,7 +104,7 @@ export async function upsertBudget(
       month: budget.month,
       totalBudget: budget.totalBudget,
       savingsTarget: budget.savingsTarget,
-      categoryBudgets: budget.categoryBudgets || {},
+      categoryBudgets: (budget.categoryBudgets || {}) as Record<string, number>,
       createdAt: budget.createdAt.getTime(),
       updatedAt: budget.updatedAt.getTime(),
     });

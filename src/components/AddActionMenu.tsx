@@ -1,15 +1,15 @@
 import React from 'react';
-import { TrendingDown, TrendingUp, ArrowRightLeft, PiggyBank } from 'lucide-react';
+import { TrendingDown, PiggyBank, PieChart } from 'lucide-react';
 import { MobileBottomSheet } from './MobileBottomSheet';
 
 interface AddActionMenuProps {
   isOpen: boolean;
   onClose: () => void;
-  onSelectAction: (action: 'expense' | 'income' | 'transfer' | 'savings') => void;
+  onSelectAction: (action: 'transaction' | 'budget' | 'goal') => void;
 }
 
 interface ActionItem {
-  id: 'expense' | 'income' | 'transfer' | 'savings';
+  id: 'transaction' | 'budget' | 'goal';
   label: string;
   Icon: React.FC<{ size?: number; className?: string }>;
   color: string;
@@ -18,32 +18,25 @@ interface ActionItem {
 
 const actions: ActionItem[] = [
   {
-    id: 'expense',
-    label: 'Dépense',
+    id: 'transaction',
+    label: 'Transaction',
     Icon: TrendingDown,
     color: 'var(--wf-danger)',
     background: 'var(--wf-danger-soft)',
   },
   {
-    id: 'income',
-    label: 'Revenu',
-    Icon: TrendingUp,
-    color: 'var(--wf-success)',
-    background: 'var(--wf-success-soft)',
-  },
-  {
-    id: 'transfer',
-    label: 'Virement',
-    Icon: ArrowRightLeft,
-    color: 'var(--wf-text)',
-    background: 'var(--wf-surface-soft)',
-  },
-  {
-    id: 'savings',
-    label: 'Épargne',
-    Icon: PiggyBank,
+    id: 'budget',
+    label: 'Budget',
+    Icon: PieChart,
     color: 'var(--wf-primary)',
     background: 'var(--wf-primary-soft)',
+  },
+  {
+    id: 'goal',
+    label: 'Objectif',
+    Icon: PiggyBank,
+    color: 'var(--wf-success)',
+    background: 'var(--wf-success-soft)',
   },
 ];
 

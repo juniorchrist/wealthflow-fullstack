@@ -11,27 +11,34 @@ import {
   Lock,
   Plus,
   Bell,
+  LogOut,
 } from 'lucide-react';
 import { UserProfile } from '../types';
 
 interface NavbarProps {
   currentTab: string;
   onSelectTab: (tab: string) => void;
+  currentMonthKey?: string;
+  onChangeMonth?: (month: string) => void;
   onOpenNotifications?: () => void;
   onOpenSettings?: () => void;
   unreadCount?: number;
   user?: UserProfile;
   onLock?: () => void;
+  onLogout?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
   currentTab,
   onSelectTab,
+  currentMonthKey,
+  onChangeMonth,
   onOpenNotifications,
   onOpenSettings,
   unreadCount = 0,
   user,
   onLock,
+  onLogout,
 }) => {
   const mainTabs = [
     { id: 'wealth', label: "Vue d'ensemble", Icon: Home },
@@ -44,6 +51,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'analytics', label: 'Analyses', Icon: BarChart3 },
     { id: 'categories', label: 'Catégories', Icon: Tag },
     { id: 'invest', label: 'Stratégie', Icon: TrendingUp },
+    { id: 'settings', label: 'Paramètres', Icon: Settings },
   ];
 
   const userInitials = user
@@ -280,6 +288,18 @@ export const Navbar: React.FC<NavbarProps> = ({
             <Settings size={15} />
             <span>Réglages</span>
           </button>
+
+          {onLogout && (
+            <button
+              onClick={onLogout}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors hover:bg-[var(--wf-surface-soft)]"
+              style={{ color: 'var(--wf-text-tertiary)' }}
+              title="Se déconnecter"
+            >
+              <LogOut size={15} />
+              <span>Quitter</span>
+            </button>
+          )}
 
           {onLock && (
             <button

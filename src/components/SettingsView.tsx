@@ -37,6 +37,8 @@ interface SettingsViewProps {
   onRestoreState?: (newState: AppState) => void;
   onResetData?: () => void;
   onLockSession?: () => void;
+  theme?: 'light' | 'dark' | 'system';
+  onThemeChange?: (theme: 'light' | 'dark' | 'system') => void;
   onRequestConfirm?: (config: {
     title: string;
     message: string;
@@ -55,6 +57,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onRestoreState,
   onResetData,
   onLockSession,
+  theme,
+  onThemeChange,
   onRequestConfirm,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -142,7 +146,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
     try {
       if (onUpdateUser) {
-        onUpdateUser({
+        await onUpdateUser({
           ...currentUser,
           nom: editNom.trim(),
           prenom: editPrenom.trim(),
@@ -401,7 +405,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               <Lock size={16} style={{ color: 'var(--wf-primary)' }} />
               <span>Sécurité d'accès rapide (PIN)</span>
             </h2>
-
             <div className="liquid-card p-4 sm:p-5 space-y-3">
               {pinSuccess && (
                 <div
@@ -532,9 +535,46 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               )}
             </div>
           </div>
-        </div>
 
-        {/* Colonne droite : Données, Sauvegarde, Session & Suppression */}
+          {/* SECTION 2b : APPARRENCE / THÈME */}
+          {onThemeChange && (
+            <div className="space-y-2.5">
+              <h2 className="wf-title-section text-sm flex items-center gap-2">
+                <Sparkles size={16} style={{ color: 'var(--wf-primary)' }} />
+                <span>Apparence</span>
+              </h2>
+
+              <div className="liquid-card p-4 sm:p-5">
+                <span className="text-[11px] font-bold uppercase tracking-wider block mb-2" style={{ color: 'var(--wf-text-tertiary)' }}>
+                  Thème de l'application
+                </span>
+                <div className="grid grid-cols-3 gap-2">
+                  {(
+                    [
+                      { id: 'light' as const, label: 'Clair' },
+                      { id: 'dark' as const, label: 'Sombre' },
+                      { id: 'system' as const, label: 'Système' },
+                    ]
+                  ).map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => onThemeChange(t.id)}
+                      className="py-2.5 rounded-xl text-xs font-bold transition-all touch-target"
+                      style={{
+                        background: theme === t.id ? 'var(--wf-primary)' : 'var(--wf-surface-soft)',
+                        color: theme === t.id ? 'white' : 'var(--wf-text-secondary)',
+                        border: theme === t.id ? 'none' : '1px solid var(--wf-border)',
+                      }}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
         <div className="space-y-5">
           {/* SECTION 3 : DONNÉES & SAUVEGARDE */}
           <div className="space-y-2.5">

@@ -120,8 +120,22 @@ export default function App() {
   // Sync theme with document element
   useEffect(() => {
     const root = document.documentElement;
+    const applySystem = () => {
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      if (prefersDark) {
+        root.classList.add('dark');
+      } else {
+        root.classList.remove('dark');
+      }
+    };
     if (theme === 'dark') {
       root.classList.add('dark');
+    } else if (theme === 'system') {
+      applySystem();
+      const mq = window.matchMedia('(prefers-color-scheme: dark)');
+      const handler = () => applySystem();
+      mq.addEventListener('change', handler);
+      return () => mq.removeEventListener('change', handler);
     } else {
       root.classList.remove('dark');
     }
@@ -251,7 +265,39 @@ export default function App() {
       alert(err.message || 'Erreur lors de la contribution à l’épargne.');
     }
   };
+  const handleToggleMilestone = async (goalId: string, milestoneId: string) => {
+    const goal = savingsGoals.find((g) => g.id === goalId);
+    if (!goal) return;
 
+    const milestone = goal.milestones?.find((m) => m.id === milestoneId);
+    if (!milestone) return;
+
+    // If the milestone is already checked, reverse the contribution
+    if (milestone.isCompleted) {
+      const newCurrent = Math.max(0, goal.currentAmount - milestone.targetAmount);
+      const updatedMilestones = (goal.milestones || []).map((m) =>
+        m.id === milestoneId
+          ? { ...m, isCompleted: false, completedAt: null }
+          : m
+      );
+      try {
+        const updated = await savingsService.updateSavingsGoal(goalId, {
+          title: goal.title,
+          targetAmount: goal.targetAmount,
+          currentAmount: newCurrent,
+          month: goal.month,
+          milestones: updatedMilestones,
+        });
+        setSavingsGoals((prev) => prev.map((g) => (g.id === goalId ? updated : g)));
+      } catch (err: any) {
+        alert(err.message || 'Erreur lors de l’annulation de la case.');
+      }
+      return;
+    }
+
+    // Otherwise contribute the milestone's target amount
+    await handleContributeSavings(goalId, milestone.targetAmount, milestoneId);
+  };
   const handleDeleteGoal = async (id: string) => {
     setConfirmConfig({
       isOpen: true,
@@ -369,8 +415,10 @@ export default function App() {
         onChangeMonth={setCurrentMonthKey}
         unreadCount={unreadCount}
         onOpenNotifications={() => setIsNotificationsOpen(true)}
-        userProfile={user || undefined}
+        user={user || undefined}
+        onOpenSettings={() => setCurrentTab('settings')}
         onLogout={logout}
+        onLock={() => setIsLocked(true)}
       />
 
       {/* Mobile Top Header */}
@@ -380,12 +428,13 @@ export default function App() {
         onChangeMonth={setCurrentMonthKey}
         unreadCount={unreadCount}
         onOpenNotifications={() => setIsNotificationsOpen(true)}
-        userProfile={user || undefined}
-        onOpenProfileMenu={() => setIsProfileMenuOpen(true)}
+        user={user || undefined}
+        onOpenProfile={() => setIsProfileMenuOpen(true)}
+        onLock={() => setIsLocked(true)}
       />
 
       {/* Main Container */}
-      <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 pb-24 md:pb-8">
+      <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 pb-24 md:pb-8 md:ml-[72px] lg:ml-64">
         {/* Sync loading indicator */}
         {isDataLoading && (
           <div className="mb-4 p-2.5 rounded-xl bg-orange-500/10 border border-orange-500/20 text-orange-600 text-xs font-semibold flex items-center justify-between animate-pulse">
@@ -439,14 +488,17 @@ export default function App() {
             currentMonthKey={currentMonthKey}
             summary={summary}
             onOpenBudgetModal={() => setIsBudgetModalOpen(true)}
+            onChangeMonth={setCurrentMonthKey}
           />
         )}
 
         {currentTab === 'goals' && (
           <GoalsView
             state={appState}
+            currentMonthKey={currentMonthKey}
+            summary={summary}
+            onToggleMilestone={handleToggleMilestone}
             onSaveGoal={handleSaveGoal}
-            onContribute={handleContributeSavings}
             onDeleteGoal={handleDeleteGoal}
           />
         )}
@@ -455,6 +507,7 @@ export default function App() {
           <AnalyticsView
             state={appState}
             currentMonthKey={currentMonthKey}
+            summary={summary}
             onNavigateTab={setCurrentTab}
           />
         )}
@@ -489,6 +542,8 @@ export default function App() {
               setBudgets(newState.budgets || {});
               setSavingsGoals(newState.savingsGoals || []);
             }}
+            theme={theme}
+            onThemeChange={setTheme}
             onRequestConfirm={(cfg) => setConfirmConfig({ ...cfg, isOpen: true })}
           />
         )}
@@ -521,13 +576,15 @@ export default function App() {
         isOpen={isProfileMenuOpen}
         onClose={() => setIsProfileMenuOpen(false)}
         userProfile={user || undefined}
-        onSelectTab={(tab) => {
+        unreadCount={unreadCount}
+        onNavigate={(tab) => {
           setIsProfileMenuOpen(false);
           setCurrentTab(tab);
         }}
-        onLogout={() => {
+        onOpenNotifications={() => setIsNotificationsOpen(true)}
+        onLock={() => {
           setIsProfileMenuOpen(false);
-          logout();
+          setIsLocked(true);
         }}
       />
 
@@ -539,7 +596,7 @@ export default function App() {
           setEditingTransaction(null);
         }}
         onSave={handleSaveTransaction}
-        transaction={editingTransaction}
+        editingTransaction={editingTransaction}
         categories={categories}
       />
 
@@ -547,9 +604,10 @@ export default function App() {
       <BudgetModal
         isOpen={isBudgetModalOpen}
         onClose={() => setIsBudgetModalOpen(false)}
+        state={appState}
         currentMonthKey={currentMonthKey}
-        currentBudget={budgets[currentMonthKey]}
-        categories={categories}
+        currentBudget={budgets[currentMonthKey]?.totalBudget}
+        currentSavingsTarget={budgets[currentMonthKey]?.savingsTarget}
         onSave={handleSaveBudget}
       />
 

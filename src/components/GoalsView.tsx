@@ -373,7 +373,32 @@ export const GoalsView: React.FC<GoalsViewProps> = ({
                       {suggestion.description}
                     </p>
                     <button
-                      onClick={() => setIsNewGoalModalOpen(true)}
+                      onClick={() => {
+                        if (suggestion.id === 'sug-1') {
+                          const milestones: SavingsMilestone[] = Array.from({ length: 52 }).map(
+                            (_, i) => ({
+                              id: `box-${Date.now()}-${i}`,
+                              title: `Semaine ${i + 1}`,
+                              targetAmount: 10000,
+                              isCompleted: false,
+                              completedAt: null,
+                            })
+                          );
+                          const newGoal: SavingsGoal = {
+                            id: `goal-${Date.now()}`,
+                            month: currentMonthKey,
+                            title: 'Discipline 52 semaines',
+                            targetAmount: 520000,
+                            currentAmount: 0,
+                            createdAt: Date.now(),
+                            milestones,
+                          };
+                          if (onSaveGoal) onSaveGoal(newGoal);
+                          setSelectedGoalId(newGoal.id);
+                        } else {
+                          setIsNewGoalModalOpen(true);
+                        }
+                      }}
                       className="text-xs font-semibold px-3 py-1 rounded-lg btn-primary touch-target"
                     >
                       {suggestion.action}

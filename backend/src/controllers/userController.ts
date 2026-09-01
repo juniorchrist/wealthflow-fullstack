@@ -70,7 +70,7 @@ export async function exportUserData(
         month: b.month,
         totalBudget: b.totalBudget,
         savingsTarget: b.savingsTarget,
-        categoryBudgets: b.categoryBudgets,
+        categoryBudgets: (b.categoryBudgets || {}) as Record<string, number>,
         createdAt: b.createdAt.getTime(),
         updatedAt: b.updatedAt.getTime(),
       };

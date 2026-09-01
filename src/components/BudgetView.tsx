@@ -9,7 +9,7 @@ interface BudgetViewProps {
   state: AppState;
   currentMonthKey: string;
   summary: MonthSummary;
-  onChangeMonth?: (monthKey: string) => void;
+  onChangeMonth?: (month: string) => void;
   onOpenBudgetModal: () => void;
 }
 

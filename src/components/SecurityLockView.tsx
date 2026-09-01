@@ -191,7 +191,7 @@ export const SecurityLockView: React.FC<SecurityLockViewProps> = ({
             isShaking ? 'animate-shake' : ''
           }`}
         >
-          {[0, 1, 2, 3].map((index) => {
+          {Array.from({ length: Math.max(4, pin.length) }).map((_, index) => {
             const hasValue = pin.length > index;
             return (
               <div

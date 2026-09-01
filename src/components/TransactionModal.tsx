@@ -7,7 +7,7 @@ import { CategoryIcon } from './ui/CategoryIcon';
 interface TransactionModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (transactionData: Omit<Transaction, 'id' | 'createdAt'>, existingId?: string) => void;
+  onSave: (transactionData: Omit<Transaction, 'createdAt'> & { id?: string }) => void;
   state?: AppState;
   categories?: Category[];
   editingTransaction?: Transaction | null;
@@ -92,17 +92,14 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
       return;
     }
 
-    onSave(
-      {
-        amount: Math.round(numericAmount),
-        type,
-        categoryId,
-        date,
-        note: note.trim() || undefined,
-      },
-      currentEditingTx ? currentEditingTx.id : undefined
-    );
-    onClose();
+    onSave({
+      id: currentEditingTx?.id,
+      amount: Math.round(numericAmount),
+      type,
+      categoryId,
+      date,
+      note: note.trim() || undefined,
+    });
   };
 
   if (!isOpen) return null;
