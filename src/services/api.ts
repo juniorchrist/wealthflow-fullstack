@@ -1,4 +1,10 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://wealthflow-fullstack-2.onrender.com';
+const RAW_API_URL = (import.meta.env.VITE_API_URL || '').trim();
+
+const API_BASE_URL = RAW_API_URL
+  ? RAW_API_URL.replace(/\/+$/, '')
+  : import.meta.env.PROD
+    ? 'https://wealthflow-fullstack-2.onrender.com/api'
+    : 'http://localhost:5000/api';
 
 const TOKEN_KEY = 'wealthflow_auth_token';
 
@@ -42,19 +48,27 @@ export class ApiError extends Error {
   }
 }
 
-export async function request<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
+export async function request<T>(
+  endpoint: string,
+  options: RequestOptions = {}
+): Promise<T> {
   const { params, headers = {}, ...customConfig } = options;
 
-  let url = `${API_BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+  let url = `${API_BASE_URL}${
+    endpoint.startsWith('/') ? endpoint : `/${endpoint}`
+  }`;
 
   if (params) {
     const searchParams = new URLSearchParams();
+
     Object.entries(params).forEach(([key, value]) => {
       if (value !== undefined && value !== null) {
         searchParams.append(key, String(value));
       }
     });
+
     const queryString = searchParams.toString();
+
     if (queryString) {
       url += (url.includes('?') ? '&' : '?') + queryString;
     }
@@ -68,10 +82,10 @@ export async function request<T>(endpoint: string, options: RequestOptions = {})
   };
 
   if (token) {
-    defaultHeaders['Authorization'] = `Bearer ${token}`;
+    defaultHeaders.Authorization = `Bearer ${token}`;
   }
 
-  const config: RequestInit = {
+  const requestConfig: RequestInit = {
     ...customConfig,
     headers: {
       ...defaultHeaders,
@@ -80,7 +94,7 @@ export async function request<T>(endpoint: string, options: RequestOptions = {})
   };
 
   try {
-    const response = await fetch(url, config);
+    const response = await fetch(url, requestConfig);
 
     if (response.status === 204) {
       return {} as T;
@@ -95,7 +109,6 @@ export async function request<T>(endpoint: string, options: RequestOptions = {})
         `Une erreur est survenue (${response.status}: ${response.statusText})`;
 
       if (response.status === 401) {
-        // Token expired or invalid
         removeAuthToken();
       }
 
@@ -107,6 +120,7 @@ export async function request<T>(endpoint: string, options: RequestOptions = {})
     if (error instanceof ApiError) {
       throw error;
     }
+
     throw new ApiError(
       error.message === 'Failed to fetch'
         ? 'Impossible de joindre le serveur. Vérifiez votre connexion internet ou que le serveur est bien démarré.'
@@ -117,23 +131,36 @@ export async function request<T>(endpoint: string, options: RequestOptions = {})
 }
 
 export const api = {
-  get: <T>(endpoint: string, params?: Record<string, any>, options?: RequestOptions) =>
-    request<T>(endpoint, { method: 'GET', params, ...options }),
+  get: <T>(
+    endpoint: string,
+    params?: Record<string, any>,
+    options?: RequestOptions
+  ) => request<T>(endpoint, { method: 'GET', params, ...options }),
 
-  post: <T>(endpoint: string, body?: any, options?: RequestOptions) =>
+  post: <T>(
+    endpoint: string,
+    body?: any,
+    options?: RequestOptions
+  ) =>
     request<T>(endpoint, {
       method: 'POST',
       body: body ? JSON.stringify(body) : undefined,
       ...options,
     }),
 
-  put: <T>(endpoint: string, body?: any, options?: RequestOptions) =>
+  put: <T>(
+    endpoint: string,
+    body?: any,
+    options?: RequestOptions
+  ) =>
     request<T>(endpoint, {
       method: 'PUT',
       body: body ? JSON.stringify(body) : undefined,
       ...options,
     }),
 
-  delete: <T>(endpoint: string, options?: RequestOptions) =>
-    request<T>(endpoint, { method: 'DELETE', ...options }),
+  delete: <T>(
+    endpoint: string,
+    options?: RequestOptions
+  ) => request<T>(endpoint, { method: 'DELETE', ...options }),
 };
