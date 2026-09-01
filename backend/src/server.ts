@@ -8,33 +8,34 @@ import { prisma } from './config/prisma';
 const app = express();
 
 // ─── CORS ──────────────────────────────────────────────────────────────────────
+// ─── CORS ──────────────────────────────────────────────────────────────────────
+const allowedOrigins = [
+  'https://wealthflow-ui.netlify.app',
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'http://localhost:5173',
+];
+
 app.use(
   cors({
-    origin: (
-      origin: string | undefined,
-      callback: (err: Error | null, allow?: boolean) => void
-    ) => {
+    origin: (origin, callback) => {
+      // Autoriser les requêtes sans Origin (Postman, curl, etc.)
       if (!origin) {
         return callback(null, true);
       }
 
-      const allowed =
-        config.corsOrigins.includes(origin) ||
-        config.corsOrigins.includes('*') ||
-        (!config.isProduction &&
-          (origin.startsWith('http://localhost') ||
-            origin.startsWith('http://127.0.0.1')));
-
-      if (allowed) {
+      if (allowedOrigins.includes(origin)) {
         return callback(null, true);
       }
 
-      return callback(new Error(`CORS: Origin non autorisée → ${origin}`));
+      console.warn(`CORS bloqué pour : ${origin}`);
+      return callback(new Error(`Origin non autorisée : ${origin}`));
     },
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
   })
 );
-
 // ─── BODY PARSER ───────────────────────────────────────────────────────────────
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
