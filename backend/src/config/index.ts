@@ -43,4 +43,10 @@ export const config = {
       ],
 
   isProduction: process.env.NODE_ENV === 'production',
+
+  // Domaine de production Netlify (origine exacte autorisée).
+  netlifyProductionOrigin: 'https://wealthflow-ui.netlify.app',
+
+  // Deploy Preview Netlify : toute origine "https://<hash>--wealthflow-ui.netlify.app".
+  netlifyPreviewPattern: /^https:\/\/[a-zA-Z0-9-]+--wealthflow-ui\.netlify\.app$/,
 };

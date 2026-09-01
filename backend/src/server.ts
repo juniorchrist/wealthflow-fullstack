@@ -8,37 +8,71 @@ import { prisma } from './config/prisma';
 const app = express();
 
 // ─── CORS ──────────────────────────────────────────────────────────────────────
-const allowedOrigins =
-  config.corsOrigins.length > 0
-    ? config.corsOrigins
-    : [
-        'https://wealthflow-ui.netlify.app',
-        'http://localhost:3000',
-        'http://localhost:3001',
-        'http://localhost:5173',
-      ];
+// Config CORS gérant la production Netlify :
+//   1. Autorise exactement  https://wealthflow-ui.netlify.app
+//   2. Autorise toute Deploy Preview  https://<hash>--wealthflow-ui.netlify.app
+//   3. localhost autorisé UNIQUEMENT en développement
+//   4. Jamais de "no-cors" : seul le middleware cors Express est utilisé.
+//   5. Jamais "*" avec credentials:true : on reflète toujours l'origine exacte.
+// Ce middleware est déclaré AVANT app.use('/api', apiRoutes) pour que le
+// préflight OPTIONS de POST /api/auth/register reçoive bien les en-têtes CORS.
 
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      // Autoriser les requêtes sans Origin (Postman, curl, etc.)
-      if (!origin) {
-        return callback(null, true);
-      }
+const PROD_NETLIFY_ORIGIN = config.netlifyProductionOrigin;
+const NETLIFY_PREVIEW_RE = config.netlifyPreviewPattern;
 
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
+// Origines locales, autorisées uniquement si ce n'est pas la production.
+const DEV_ALLOWED_ORIGINS = [
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'http://localhost:5173',
+];
 
-      console.warn(`CORS bloqué pour : ${origin}`);
-      return callback(new Error(`Origin non autorisée : ${origin}`));
-    },
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-    credentials: true,
-    optionsSuccessStatus: 204,
-  })
-);
+function isAllowedOrigin(origin: string): boolean {
+  // 1. Domaine de production exact.
+  if (origin === PROD_NETLIFY_ORIGIN) {
+    return true;
+  }
+
+  // 2. Deploy Preview Netlify : "https://<hash>--wealthflow-ui.netlify.app"
+  if (NETLIFY_PREVIEW_RE.test(origin)) {
+    return true;
+  }
+
+  // 3. localhost UNIQUEMENT en développement.
+  if (config.nodeEnv !== 'production' && DEV_ALLOWED_ORIGINS.includes(origin)) {
+    return true;
+  }
+
+  return false;
+}
+
+const corsOptions: cors.CorsOptions = {
+  origin: (origin, callback) => {
+    // Requêtes sans en-tête Origin (curl, Postman, appels serveur, OPTIONS).
+    if (!origin) {
+      return callback(null, true);
+    }
+
+    if (isAllowedOrigin(origin)) {
+      // On renvoie l'origine exacte (jamais "*") pour rester compatible avec
+      // credentials: true et produire le bon Access-Control-Allow-Origin.
+      return callback(null, origin);
+    }
+
+    console.warn(`CORS bloqué pour : ${origin}`);
+    return callback(new Error(`Origin non autorisée : ${origin}`));
+  },
+  // OPTIONS est inclus pour traiter correctement le préflight (requis par
+  // POST /api/auth/register en cross-origin).
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true,
+  optionsSuccessStatus: 204,
+  preflightContinue: false,
+};
+
+// Doit être placé AVANT app.use('/api', apiRoutes).
+app.use(cors(corsOptions));
 // ─── BODY PARSER ───────────────────────────────────────────────────────────────
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
