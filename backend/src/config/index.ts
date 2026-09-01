@@ -1,20 +1,24 @@
 import dotenv from 'dotenv';
 import path from 'path';
 
-// Charge backend/.env (cwd = backend en dev et sur Render avec Root Directory = backend)
-dotenv.config({ path: path.resolve(process.cwd(), '.env') });
+dotenv.config({
+  path: path.resolve(process.cwd(), '.env'),
+});
 
 function requireEnv(key: string, fallback?: string): string {
   const isProduction = process.env.NODE_ENV === 'production';
   const value = process.env[key] || (isProduction ? undefined : fallback);
+
   if (!value) {
-    throw new Error(`[WealthFlow] Missing required environment variable: ${key}`);
+    throw new Error(
+      `[WealthFlow] Missing required environment variable: ${key}`
+    );
   }
+
   return value;
 }
 
 export const config = {
-  // Render fournit automatiquement PORT en production
   port: process.env.PORT ? parseInt(process.env.PORT, 10) : 5000,
 
   nodeEnv: process.env.NODE_ENV || 'development',
@@ -26,10 +30,13 @@ export const config = {
 
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
 
-  // URLs autorisées à communiquer avec l'API
   corsOrigins: process.env.CORS_ORIGIN
-    ? process.env.CORS_ORIGIN.split(',').map((o) => o.trim())
+    ? process.env.CORS_ORIGIN
+        .split(',')
+        .map((o: string) => o.trim())
+        .filter(Boolean)
     : [
+        'https://wealthflow-ui.netlify.app',
         'http://localhost:3000',
         'http://localhost:3001',
         'http://localhost:5173',
