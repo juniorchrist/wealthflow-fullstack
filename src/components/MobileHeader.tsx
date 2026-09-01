@@ -27,7 +27,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
 }) => {
   const userInitials = user
     ? ((user.prenom?.[0] || '') + (user.nom?.[0] || '')).toUpperCase()
-    : '';
+    : 'U';
 
   return (
     <header className="mobile-header mobile-only" role="banner">

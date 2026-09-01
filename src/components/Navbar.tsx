@@ -56,7 +56,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   const userInitials = user
     ? ((user.prenom?.[0] || '') + (user.nom?.[0] || '')).toUpperCase()
-    : '';
+    : 'U';
 
   // Compact icon rail for tablet (md..lg range). Replaces the full sidebar so
   // there is never a big labeled sidebar plus an overlapping nav on tablets.

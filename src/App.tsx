@@ -390,8 +390,8 @@ export default function App() {
     return <RegisterView />;
   }
 
-  // 3. Security PIN Lock Screen (if locked & user has PIN)
-  if (isLocked && user?.hasPin) {
+  // 3. Security PIN Lock Screen (if locked)
+  if (isLocked) {
     return (
       <SecurityLockView
         user={user}
