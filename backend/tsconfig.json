@@ -12,7 +12,10 @@
     "resolveJsonModule": true,
     "declaration": false,
     "removeComments": true,
-    "sourceMap": false
+    "sourceMap": false,
+    "lib": ["ES2022"],
+    "types": ["node", "express", "cors"],
+    "typeRoots": ["./node_modules/@types"]
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "tests"]

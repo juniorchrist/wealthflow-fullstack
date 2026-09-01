@@ -1,5 +1,5 @@
-import express from 'express';
-import cors from 'cors';
+import express, { Request, Response } from 'express';
+import cors, { CorsOptions } from 'cors';
 import { config } from './config';
 import { apiRoutes } from './routes';
 import { errorHandler } from './middleware/errorHandler';
@@ -10,7 +10,7 @@ const app = express();
 // ─── CORS ──────────────────────────────────────────────────────────────────────
 app.use(
   cors({
-    origin: (origin, callback) => {
+    origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
       // Requêtes sans origin (curl, mobile, same-origin) toujours acceptées
       if (!origin) return callback(null, true);
 
@@ -33,7 +33,7 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // ─── ROOT ──────────────────────────────────────────────────────────────────────
-app.get('/', (_req, res) => {
+app.get('/', (_req: Request, res: Response) => {
   res.json({
     service: 'WealthFlow API',
     version: '2.0.0',

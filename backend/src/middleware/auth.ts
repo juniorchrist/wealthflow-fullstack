@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { verifyToken, JwtPayload } from '../utils/auth';
 import { prisma } from '../config/prisma';
 
-export interface AuthenticatedRequest extends Request {
+export interface AuthenticatedRequest extends Request<any, any, any, any> {
   user?: {
     id: string;
     email: string;

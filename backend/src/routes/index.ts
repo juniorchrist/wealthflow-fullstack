@@ -22,7 +22,9 @@ apiRoutes.use('/settings', settingsRoutes);
 apiRoutes.use('/users', userRoutes);
 
 // ─── Health check (sondé par Render pour keep-alive) ──────────────────────────
-apiRoutes.get('/health', async (_req, res) => {
+import { Request, Response } from 'express';
+
+apiRoutes.get('/health', async (_req: Request, res: Response) => {
   let dbStatus = 'ok';
   try {
     await prisma.$queryRaw`SELECT 1`;

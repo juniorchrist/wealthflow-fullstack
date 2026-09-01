@@ -19,8 +19,9 @@ services:
     # Pas de rootDir - on utilise cd dans les commandes
 
     # ── Build ───────────────────────────────────────────────
-    buildCommand: cd backend && npm install && npm run build
-    # Le postinstall dans package.json génère automatiquement Prisma Client
+    buildCommand: cd backend && npm ci --include=dev && npm run prisma:generate && npm run build
+    # npm ci (npm clean-install) est plus fiable que npm install pour les déploiements
+    # --include=dev assure que les dépendances TypeScript (@types/*) sont installées
 
     # ── Start ───────────────────────────────────────────────
     startCommand: cd backend && npm run start
