@@ -21,7 +21,7 @@ interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({
   title,
-  subtitle = 'Voici un aperçu de votre santé financière aujourd'hui.',
+  subtitle = "Voici un aperçu de votre santé financière aujourd'hui.",
 }) => {
   const {
     userProfile,
