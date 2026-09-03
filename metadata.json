@@ -1,0 +1,6 @@
+{
+  "name": "WealthFlow",
+  "description": "Application SaaS de gestion financière personnelle en Franc CFA (FCFA) avec suivi des budgets, tirelires d'épargne, analyse de dépenses et stratégie financière.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
