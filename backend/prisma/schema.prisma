@@ -1,0 +1,205 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String         @id @default(cuid())
+  email             String         @unique
+  passwordHash      String
+  firstName         String
+  lastName          String
+  phone             String?
+  avatar            String?
+  currency          String         @default("FCFA")
+  language          String         @default("Français")
+  timezone          String         @default("GMT +00:00")
+  dateFormat        String         @default("DD/MM/YYYY")
+  plan              String         @default("WealthFlow Pro")
+  pinHash           String?
+  isPinEnabled      Boolean        @default(false)
+  autoLockMinutes   Int            @default(15)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  
+  accounts          Account[]
+  transactions      Transaction[]
+  categories        Category[]
+  savingsGoals      SavingsGoal[]
+  notifications     Notification[]
+  refreshTokens     RefreshToken[]
+  budgets           Budget[]
+  
+  @@index([email])
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([token])
+}
+
+model Account {
+  id             String        @id @default(cuid())
+  userId         String
+  name           String
+  type           String        @default("main") // "main", "card", "cash", "savings"
+  initialBalance Float         @default(0)
+  currency       String        @default("FCFA")
+  isDefault      Boolean       @default(false)
+  icon           String?
+  color          String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions   Transaction[]
+  
+  @@index([userId])
+}
+
+model Category {
+  id             String           @id @default(cuid())
+  userId         String?          // null = catégorie globale
+  name           String
+  icon           String
+  color          String
+  budgetLimit    Float            @default(0)
+  type           String           // "expense" | "income"
+  isDefault      Boolean          @default(false)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  
+  user           User?            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions   Transaction[]
+  budgetCategories BudgetCategory[]
+  
+  @@index([userId])
+  @@index([type])
+}
+
+model Transaction {
+  id           String             @id @default(cuid())
+  userId       String
+  accountId    String?
+  categoryId   String
+  title        String
+  amount       Float
+  type         String             // "income" | "expense" | "savings_deposit"
+  date         DateTime
+  time         String?
+  notes        String?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  
+  user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account      Account?           @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  category     Category           @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  deposit      SavingsDeposit?
+  
+  @@index([userId])
+  @@index([categoryId])
+  @@index([accountId])
+  @@index([date])
+  @@index([type])
+}
+
+model SavingsGoal {
+  id                String           @id @default(cuid())
+  userId            String
+  title             String
+  targetAmount      Float
+  deadline          String           // Format libre pour l'instant
+  icon              String
+  color             String
+  description       String?
+  isAutoSaveActive  Boolean          @default(false)
+  autoSaveAmount    Float?
+  checkboxesCount   Int              @default(10)
+  checkedBoxes      Json?            // Array of integers
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  
+  user              User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deposits          SavingsDeposit[]
+  
+  @@index([userId])
+}
+
+model SavingsDeposit {
+  id             String       @id @default(cuid())
+  goalId         String
+  transactionId  String       @unique
+  amount         Float
+  date           DateTime
+  notes          String?
+  createdAt      DateTime     @default(now())
+  
+  goal           SavingsGoal  @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  transaction    Transaction  @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  
+  @@index([goalId])
+  @@index([date])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  message   String
+  type      String   // "info" | "warning" | "success" | "alert"
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([read])
+  @@index([createdAt])
+}
+
+model Budget {
+  id          String           @id @default(cuid())
+  userId      String
+  month       String           // Format "YYYY-MM"
+  totalBudget Float
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  categories  BudgetCategory[]
+  
+  @@unique([userId, month])
+  @@index([userId])
+  @@index([month])
+}
+
+model BudgetCategory {
+  id         String   @id @default(cuid())
+  budgetId   String
+  categoryId String
+  limit      Float
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  
+  budget     Budget   @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  
+  @@unique([budgetId, categoryId])
+  @@index([budgetId])
+  @@index([categoryId])
+}
