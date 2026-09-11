@@ -15,18 +15,61 @@ const app: Application = express();
 // MIDDLEWARE DE SÉCURITÉ
 // ============================================================================
 
-// Helmet - Sécurise les headers HTTP
-app.use(helmet());
-
-// CORS - Autorise uniquement le frontend
+// Helmet - Sécurise les headers HTTP tout en autorisant les requêtes cross-origin du frontend
 app.use(
-  cors({
-    origin: env.frontend.url,
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+  helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
   })
 );
+
+// Liste des origines autorisées normalisées (100% ASCII, sans guillemets, sans slash de fin)
+const allowedOriginsSet = new Set(
+  env.frontend.allowedUrls
+    .map((u) => u.trim().replace(/^["']|["']$/g, '').replace(/\/+$/, ''))
+    .filter((u) => /^https?:\/\/[a-zA-Z0-9-._:]+$/.test(u))
+);
+
+// Middleware CORS infaillible & sécurisé
+app.use((req, res, next) => {
+  const incomingOrigin = req.headers.origin;
+
+  if (incomingOrigin && typeof incomingOrigin === 'string') {
+    // Nettoyer rigoureusement l'origine (supprimer tout caractère non ASCII / non URL)
+    const cleanOrigin = incomingOrigin.trim().replace(/^["']|["']$/g, '').replace(/\/+$/, '');
+
+    // Vérifier si autorisée (domaine netlify, localhost ou liste explicite)
+    const isAllowed =
+      allowedOriginsSet.has(cleanOrigin) ||
+      cleanOrigin.endsWith('.netlify.app') ||
+      cleanOrigin.includes('localhost') ||
+      cleanOrigin.includes('127.0.0.1') ||
+      env.server.nodeEnv === 'development';
+
+    if (isAllowed) {
+      res.setHeader('Access-Control-Allow-Origin', cleanOrigin);
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+      res.setHeader(
+        'Access-Control-Allow-Headers',
+        'Content-Type, Authorization, X-Requested-With, Accept, Origin'
+      );
+      res.setHeader('Access-Control-Expose-Headers', 'Content-Range, X-Content-Range');
+      res.setHeader('Access-Control-Max-Age', '86400');
+    }
+  } else {
+    // Requêtes directes ou serveurs sans header Origin (health checks Render, curl, etc.)
+    res.setHeader('Access-Control-Allow-Origin', '*');
+  }
+
+  // Répondre immédiatement aux requêtes preflight OPTIONS
+  if (req.method === 'OPTIONS') {
+    res.status(204).end();
+    return;
+  }
+
+  next();
+});
+
 
 // Rate limiting global
 app.use(globalLimiter);

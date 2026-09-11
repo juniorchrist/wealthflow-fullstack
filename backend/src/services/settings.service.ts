@@ -20,10 +20,10 @@ export const getUserSettings = async (userId: string) => {
   }
 
   return {
-    firstName: user.firstName,
-    lastName: user.lastName,
+    nom: user.nom,
+    prenom: user.prenom,
     email: user.email,
-    phone: user.phone,
+    numero: user.numero,
     avatar: user.avatar,
     currency: user.currency,
     language: user.language,
@@ -42,10 +42,10 @@ export const updateUserSettings = async (userId: string, data: UpdateSettingsInp
   const updatedUser = await updateUserSettingsRepo(userId, data);
   
   return {
-    firstName: updatedUser.firstName,
-    lastName: updatedUser.lastName,
+    nom: updatedUser.nom,
+    prenom: updatedUser.prenom,
     email: updatedUser.email,
-    phone: updatedUser.phone,
+    numero: updatedUser.numero,
     avatar: updatedUser.avatar,
     currency: updatedUser.currency,
     language: updatedUser.language,

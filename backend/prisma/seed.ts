@@ -125,8 +125,8 @@ async function main() {
       data: {
         email: testUserEmail,
         passwordHash: await bcrypt.hash('password123', 10),
-        firstName: 'Utilisateur',
-        lastName: 'Test',
+        prenom: 'Utilisateur',
+        nom: 'Test',
         currency: 'FCFA',
       },
     });

@@ -54,7 +54,7 @@ export const NewGoalModal: React.FC = () => {
           </div>
           <button
             onClick={() => setIsNewGoalModalOpen(false)}
-            className="w-8 h-8 rounded-full bg-[#F7F7F7] hover:bg-[#E8E8E8] flex items-center justify-center text-[#6F6F73] hover:text-[#18181B] transition-colors cursor-pointer"
+            className="w-8 h-8 rounded-full bg-[#F7F7F7] flex items-center justify-center text-[#6F6F73] transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -149,7 +149,7 @@ export const NewGoalModal: React.FC = () => {
                   className={`p-3 rounded-xl border transition-all cursor-pointer ${
                     icon === item.name
                       ? 'bg-[#FF5330] text-white border-[#FF5330] shadow-sm'
-                      : 'bg-[#FAFAFA] border-[#E8E8E8] text-[#18181B] hover:border-[#FF5330]'
+                      : 'bg-[#FAFAFA] border-[#E8E8E8] text-[#18181B]'
                   }`}
                 >
                   {item.icon}
@@ -177,13 +177,13 @@ export const NewGoalModal: React.FC = () => {
             <button
               type="button"
               onClick={() => setIsNewGoalModalOpen(false)}
-              className="px-4 py-2.5 rounded-xl text-xs font-bold text-[#6F6F73] hover:text-[#18181B] hover:bg-[#F7F7F7] cursor-pointer"
+              className="px-4 py-2.5 rounded-xl text-xs font-bold text-[#6F6F73] cursor-pointer"
             >
               Annuler
             </button>
             <button
               type="submit"
-              className="px-5 py-2.5 rounded-xl bg-[#FF5330] hover:bg-[#E84524] text-white font-bold text-xs sm:text-sm shadow-sm transition-all cursor-pointer"
+              className="px-5 py-2.5 rounded-xl bg-[#FF5330] text-white font-bold text-xs sm:text-sm shadow-sm transition-all cursor-pointer"
             >
               Créer la tirelire
             </button>

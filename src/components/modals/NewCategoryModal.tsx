@@ -1,6 +1,73 @@
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
 import { useWealth } from '../../context/WealthContext';
+import { IconPicker } from '../common/IconPicker';
+
+// Import all available icons from IconPicker to show the selected one
+import {
+  ArrowLeftRight,
+  Baby,
+  BookOpen,
+  Briefcase,
+  Bus,
+  Car,
+  CircleHelp,
+  Coffee,
+  Dumbbell,
+  Film,
+  Fuel,
+  Gamepad2,
+  Gift,
+  GraduationCap,
+  HeartPulse,
+  Home,
+  House,
+  Landmark,
+  Music,
+  Phone,
+  PiggyBank,
+  Plane,
+  Receipt,
+  ShoppingBag,
+  ShoppingCart,
+  Utensils,
+  Wallet,
+  Wifi,
+  Wrench,
+} from 'lucide-react';
+
+// Map icon names to components
+const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
+  ArrowLeftRight,
+  Baby,
+  BookOpen,
+  Briefcase,
+  Bus,
+  Car,
+  CircleHelp,
+  Coffee,
+  Dumbbell,
+  Film,
+  Fuel,
+  Gamepad2,
+  Gift,
+  GraduationCap,
+  HeartPulse,
+  Home,
+  House,
+  Landmark,
+  Music,
+  Phone,
+  PiggyBank,
+  Plane,
+  Receipt,
+  ShoppingBag,
+  ShoppingCart,
+  Utensils,
+  Wallet,
+  Wifi,
+  Wrench,
+};
 
 export const NewCategoryModal: React.FC = () => {
   const { isNewCategoryModalOpen, setIsNewCategoryModalOpen, addCategory } = useWealth();
@@ -8,6 +75,8 @@ export const NewCategoryModal: React.FC = () => {
   const [name, setName] = useState('');
   const [type, setType] = useState<'expense' | 'income'>('expense');
   const [budgetLimit, setBudgetLimit] = useState('');
+  const [selectedIcon, setSelectedIcon] = useState('Wallet');
+  const [isIconPickerOpen, setIsIconPickerOpen] = useState(false);
 
   if (!isNewCategoryModalOpen) return null;
 
@@ -20,11 +89,12 @@ export const NewCategoryModal: React.FC = () => {
       type,
       budgetLimit: Number(budgetLimit) || 0,
       color: '#FF5330',
-      icon: 'Tag',
+      icon: selectedIcon,
     });
 
     setName('');
     setBudgetLimit('');
+    setSelectedIcon('Wallet');
     setIsNewCategoryModalOpen(false);
   };
 
@@ -40,7 +110,7 @@ export const NewCategoryModal: React.FC = () => {
           </div>
           <button
             onClick={() => setIsNewCategoryModalOpen(false)}
-            className="w-8 h-8 rounded-full bg-[#F7F7F7] hover:bg-[#E8E8E8] flex items-center justify-center text-[#6F6F73] hover:text-[#18181B] transition-colors cursor-pointer"
+            className="w-8 h-8 rounded-full bg-[#F7F7F7] flex items-center justify-center text-[#6F6F73] transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -72,6 +142,28 @@ export const NewCategoryModal: React.FC = () => {
               }`}
             >
               Catégorie d’Entrée
+            </button>
+          </div>
+
+          {/* Icon Selection */}
+          <div>
+            <label className="text-xs font-bold text-[#18181B] block mb-1">Icône de la catégorie</label>
+            <button
+              type="button"
+              onClick={() => setIsIconPickerOpen(true)}
+              className="w-full px-4 py-3 rounded-xl bg-[#FAFAFA] border border-[#E8E8E8] text-left flex items-center space-x-3 focus:outline-none focus:border-[#FF5330] transition-colors cursor-pointer"
+            >
+              <div className="w-6 h-6 rounded-md bg-[#FF5330]/10 flex items-center justify-center">
+                {(() => {
+                  const IconComponent = iconMap[selectedIcon];
+                  return IconComponent ? (
+                    <IconComponent className="w-4 h-4 text-[#FF5330]" />
+                  ) : (
+                    <Wallet className="w-4 h-4 text-[#FF5330]" />
+                  );
+                })()}
+              </div>
+              <span className="text-xs font-semibold text-[#18181B]">{selectedIcon}</span>
             </button>
           </div>
 
@@ -108,18 +200,30 @@ export const NewCategoryModal: React.FC = () => {
             <button
               type="button"
               onClick={() => setIsNewCategoryModalOpen(false)}
-              className="px-4 py-2.5 rounded-xl text-xs font-bold text-[#6F6F73] hover:text-[#18181B] hover:bg-[#F7F7F7] cursor-pointer"
+              className="px-4 py-2.5 rounded-xl text-xs font-bold text-[#6F6F73] cursor-pointer"
             >
               Annuler
             </button>
             <button
               type="submit"
-              className="px-5 py-2.5 rounded-xl bg-[#FF5330] hover:bg-[#E84524] text-white font-bold text-xs sm:text-sm shadow-sm transition-all cursor-pointer"
+              className="px-5 py-2.5 rounded-xl bg-[#FF5330] text-white font-bold text-xs sm:text-sm shadow-sm transition-all cursor-pointer"
             >
               Créer la catégorie
             </button>
           </div>
         </form>
+
+        {/* Icon Picker Modal */}
+        {isIconPickerOpen && (
+          <IconPicker
+            selectedIcon={selectedIcon}
+            onIconSelect={(iconName) => {
+              setSelectedIcon(iconName);
+              setIsIconPickerOpen(false);
+            }}
+            onClose={() => setIsIconPickerOpen(false)}
+          />
+        )}
       </div>
     </div>
   );

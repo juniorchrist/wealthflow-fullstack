@@ -24,7 +24,7 @@ export const StrategyView: React.FC = () => {
   const healthScore = Math.min(100, Math.max(50, Math.round(savingsRate * 1.5 + 35)));
 
   return (
-    <div id="strategy-view" className="space-y-4 sm:space-y-5 animate-in fade-in duration-200">
+    <div id="strategy-view" className="space-y-4 sm:space-y-5 animate-in fade-in duration-200 px-4 py-4 pb-24 lg:p-0">
       
       {/* 1. Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -60,7 +60,7 @@ export const StrategyView: React.FC = () => {
 
         <button
           onClick={() => setActiveTab('savings')}
-          className="px-3 py-1.5 rounded-xl bg-[#FF5330] hover:bg-[#E84524] active:scale-95 text-white font-bold text-xs shadow-xs transition-all cursor-pointer flex-shrink-0"
+          className="px-3 py-1.5 rounded-xl bg-[#FF5330] active:scale-95 text-white font-bold text-xs shadow-xs transition-all cursor-pointer flex-shrink-0"
         >
           Mes objectifs
           <ArrowRight className="w-3.5 h-3.5" />

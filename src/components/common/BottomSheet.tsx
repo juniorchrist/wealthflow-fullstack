@@ -58,25 +58,25 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
           <div className="w-10 h-1.25 bg-[#D4D4D8] rounded-full" />
         </div>
 
-        {/* Header if title is present */}
+        {/* Header if title is present - Compact version */}
         {(title || subtitle) && (
-          <div className="px-5 py-3 flex items-center justify-between border-b border-[#F0F0F0]">
+          <div className="px-4 py-2 flex items-center justify-between border-b border-[#F0F0F0]">
             <div className="min-w-0 pr-2">
-              {title && <h3 className="font-extrabold text-base sm:text-lg text-[#18181B] truncate">{title}</h3>}
-              {subtitle && <p className="text-xs text-[#6F6F73] mt-0.5 truncate">{subtitle}</p>}
+              {title && <h3 className="font-extrabold text-sm sm:text-base text-[#18181B] truncate">{title}</h3>}
+              {subtitle && <p className="text-[11px] text-[#6F6F73] mt-0.5 truncate">{subtitle}</p>}
             </div>
             <button
               onClick={onClose}
-              className="w-8 h-8 rounded-full bg-[#F7F7F7] hover:bg-[#E8E8E8] flex items-center justify-center text-[#6F6F73] hover:text-[#18181B] transition-colors cursor-pointer flex-shrink-0"
+              className="w-7 h-7 rounded-full bg-[#F7F7F7] flex items-center justify-center text-[#6F6F73] transition-colors cursor-pointer flex-shrink-0"
               aria-label="Fermer"
             >
-              <X className="w-4 h-4" />
+              <X className="w-3.5 h-3.5" />
             </button>
           </div>
         )}
 
-        {/* Scrollable Content */}
-        <div className="px-5 py-4 overflow-y-auto flex-1">{children}</div>
+        {/* Scrollable Content - Reduced padding for compact cards */}
+        <div className="px-4 py-2 overflow-y-auto flex-1">{children}</div>
       </div>
     </div>
   );

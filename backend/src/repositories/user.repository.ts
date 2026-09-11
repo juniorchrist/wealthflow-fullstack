@@ -4,9 +4,9 @@ import { User } from '@prisma/client';
 export interface CreateUserData {
   email: string;
   passwordHash: string;
-  firstName: string;
-  lastName: string;
-  phone?: string;
+  nom: string;
+  prenom: string;
+  numero?: string;
   currency?: string;
   language?: string;
   timezone?: string;
@@ -14,9 +14,9 @@ export interface CreateUserData {
 }
 
 export interface UpdateUserData {
-  firstName?: string;
-  lastName?: string;
-  phone?: string | null;
+  nom?: string;
+  prenom?: string;
+  numero?: string | null;
   avatar?: string | null;
   currency?: string;
   language?: string;
@@ -35,9 +35,9 @@ export const createUser = async (data: CreateUserData): Promise<User> => {
     data: {
       email: data.email,
       passwordHash: data.passwordHash,
-      firstName: data.firstName,
-      lastName: data.lastName,
-      phone: data.phone,
+      nom: data.nom,
+      prenom: data.prenom,
+      numero: data.numero,
       currency: data.currency || 'FCFA',
       language: data.language || 'Français',
       timezone: data.timezone || 'GMT +00:00',
@@ -95,9 +95,9 @@ export const getUserProfile = async (userId: string) => {
     select: {
       id: true,
       email: true,
-      firstName: true,
-      lastName: true,
-      phone: true,
+      nom: true,
+      prenom: true,
+      numero: true,
       avatar: true,
       currency: true,
       language: true,

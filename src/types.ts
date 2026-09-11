@@ -86,7 +86,8 @@ export type ActiveTab =
   | 'categories'
   | 'notifications'
   | 'settings'
-  | 'security';
+  | 'security'
+  | 'admin';
 
 export type AppRoute = 'landing' | 'app' | 'login' | 'register';
 

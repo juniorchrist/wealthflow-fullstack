@@ -24,7 +24,7 @@ export const NotificationsView: React.FC = () => {
   };
 
   return (
-    <div id="notifications-view" className="space-y-6 sm:space-y-8 animate-in fade-in duration-200">
+    <div id="notifications-view" className="space-y-6 sm:space-y-8 animate-in fade-in duration-200 px-4 py-4 pb-24 lg:p-0">
       {/* 1. Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
@@ -38,7 +38,7 @@ export const NotificationsView: React.FC = () => {
 
         <button
           onClick={markAllNotificationsAsRead}
-          className="inline-flex items-center px-4 py-2 rounded-xl bg-white border border-[#E8E8E8] text-xs font-bold text-[#18181B] hover:border-[#FF5330] hover:text-[#FF5330] transition-colors cursor-pointer self-start sm:self-auto"
+          className="inline-flex items-center px-4 py-2 rounded-xl bg-white border border-[#E8E8E8] text-xs font-bold text-[#18181B] transition-colors cursor-pointer self-start sm:self-auto"
         >
           Tout marquer comme lu
         </button>
@@ -51,7 +51,7 @@ export const NotificationsView: React.FC = () => {
           className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
             filter === 'all'
               ? 'bg-[#18181B] text-white shadow-sm'
-              : 'bg-white border border-[#E8E8E8] text-[#6F6F73] hover:text-[#18181B]'
+              : 'bg-white border border-[#E8E8E8] text-[#6F6F73]'
           }`}
         >
           Toutes ({notifications.length})
@@ -61,7 +61,7 @@ export const NotificationsView: React.FC = () => {
           className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
             filter === 'unread'
               ? 'bg-[#18181B] text-white shadow-sm'
-              : 'bg-white border border-[#E8E8E8] text-[#6F6F73] hover:text-[#18181B]'
+              : 'bg-white border border-[#E8E8E8] text-[#6F6F73]'
           }`}
         >
           Non lues ({notifications.filter((n) => !n.read).length})
@@ -104,14 +104,14 @@ export const NotificationsView: React.FC = () => {
                 {!notif.read && (
                   <button
                     onClick={() => markNotificationAsRead(notif.id)}
-                    className="text-xs font-bold text-[#FF5330] hover:underline cursor-pointer"
+                    className="text-xs font-bold text-[#FF5330] cursor-pointer"
                   >
                     Marquer lu
                   </button>
                 )}
                 <button
                   onClick={() => deleteNotification(notif.id)}
-                  className="p-1.5 text-[#A1A1AA] hover:text-[#EF4444] rounded-lg transition-colors cursor-pointer"
+                  className="p-1.5 text-[#A1A1AA] rounded-lg transition-colors cursor-pointer"
                   title="Supprimer"
                 >
                   <Trash2 className="w-4 h-4" />

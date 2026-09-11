@@ -5,15 +5,17 @@ interface BrandLogoProps {
   size?: 'sm' | 'md' | 'lg' | 'xl';
   showBadge?: boolean;
   withDarkContainer?: boolean;
+  useOfficialLogo?: boolean;
 }
 
 export const BrandLogo: React.FC<BrandLogoProps> = ({
   className = '',
   size = 'md',
   showBadge = false,
-  withDarkContainer = true,
+  withDarkContainer = false,
+  useOfficialLogo = true,
 }) => {
-  const sizeConfig = {
+  const sizeConfig: Record<string, string> = {
     sm: 'h-6 sm:h-7',
     md: 'h-7 sm:h-8',
     lg: 'h-9 sm:h-10',
@@ -22,38 +24,24 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
 
   const imgHeight = sizeConfig[size];
 
+  // Logo officiel — fond noir retiré via mix-blend-mode multiply
+  // fonctionne sur fond blanc ou très clair
   const logoImage = (
     <div className="flex items-center gap-2">
       <img
-        src="/LOGOwealthflow.png"
-        alt="WealthFlow - Gestion de Finance"
-        referrerPolicy="no-referrer"
-        className={`${imgHeight} w-auto max-w-full object-contain transition-transform`}
+        src="/logo.png"
+        alt="WealthFlow"
+        className={`${imgHeight} w-auto max-w-full object-contain`}
+        style={{ mixBlendMode: 'multiply' }}
       />
-      {showBadge && (
-        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-black bg-[#FF5330] text-white tracking-wider flex-shrink-0">
-          PRO
-        </span>
-      )}
     </div>
   );
 
-  if (withDarkContainer) {
-    return (
-      <div
-        className={`inline-flex items-center justify-between bg-[#121214] border border-[#27272A] px-3 py-2 rounded-xl shadow-2xs ${className}`}
-      >
-        {logoImage}
-      </div>
-    );
-  }
-
+  // withDarkContainer gardé pour rétrocompatibilité mais on n'entoure plus d'un fond noir
+  // car le logo doit s'afficher directement sur le fond de la page
   return (
     <div className={`inline-flex items-center select-none ${className}`}>
       {logoImage}
     </div>
   );
 };
-
-
-

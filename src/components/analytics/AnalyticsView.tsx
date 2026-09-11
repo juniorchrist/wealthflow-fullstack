@@ -70,7 +70,7 @@ export const AnalyticsView: React.FC = () => {
   );
 
   return (
-    <div id="analytics-view" className="space-y-5 sm:space-y-6 animate-in fade-in duration-200">
+    <div id="analytics-view" className="space-y-5 sm:space-y-6 animate-in fade-in duration-200 px-4 py-4 pb-24 lg:p-0">
       
       {/* 1. Header & Timeframe */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -90,7 +90,7 @@ export const AnalyticsView: React.FC = () => {
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
               timeframe === '6'
                 ? 'bg-[#18181B] text-white shadow-xs'
-                : 'text-[#6F6F73] hover:text-[#18181B]'
+                : 'text-[#6F6F73]'
             }`}
           >
             6 mois
@@ -100,7 +100,7 @@ export const AnalyticsView: React.FC = () => {
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
               timeframe === '3'
                 ? 'bg-[#18181B] text-white shadow-xs'
-                : 'text-[#6F6F73] hover:text-[#18181B]'
+                : 'text-[#6F6F73]'
             }`}
           >
             3 mois
@@ -110,7 +110,7 @@ export const AnalyticsView: React.FC = () => {
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
               timeframe === '12'
                 ? 'bg-[#18181B] text-white shadow-xs'
-                : 'text-[#6F6F73] hover:text-[#18181B]'
+                : 'text-[#6F6F73]'
             }`}
           >
             12 mois

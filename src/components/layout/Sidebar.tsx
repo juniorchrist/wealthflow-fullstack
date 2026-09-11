@@ -3,8 +3,6 @@ import {
   ArrowLeftRight,
   BarChart3,
   Bell,
-  CheckCircle2,
-  ChevronRight,
   LayoutDashboard,
   Lightbulb,
   Lock,
@@ -25,9 +23,9 @@ export const Sidebar: React.FC = () => {
     activeTab,
     setActiveTab,
     notifications,
+    userProfile,
     setIsNewTransactionModalOpen,
     lockApp,
-    userProfile,
   } = useWealth();
 
   const unreadCount = notifications.filter((n) => !n.read).length;
@@ -44,10 +42,10 @@ export const Sidebar: React.FC = () => {
     {
       section: 'PRINCIPAL',
       items: [
-        { id: 'dashboard', label: 'Vue d’ensemble', icon: LayoutDashboard },
+        { id: 'dashboard', label: 'Vue d\'ensemble', icon: LayoutDashboard },
         { id: 'transactions', label: 'Activité', icon: ArrowLeftRight },
         { id: 'budget', label: 'Budget', icon: PieChart },
-        { id: 'savings', label: 'Épargne & Tirelires', icon: PiggyBank },
+        { id: 'savings', label: 'Épargne et Tirelires', icon: PiggyBank },
       ],
     },
     {
@@ -74,13 +72,40 @@ export const Sidebar: React.FC = () => {
       className="hidden lg:flex flex-col w-64 xl:w-72 bg-white border-r border-[#E8E8E8] h-screen sticky top-0 px-3.5 py-4 z-30 select-none overflow-y-auto"
     >
       {/* Brand Header with Full PNG Logo in dark container for 100% contrast */}
-      <div className="px-0.5 mb-3.5">
-        <div
-          className="cursor-pointer group transition-all"
-          onClick={() => setActiveTab('dashboard')}
-          title="WealthFlow - Gestion de Finance"
-        >
-          <BrandLogo size="md" showBadge={true} withDarkContainer={true} className="w-full" />
+      <div className="px-0.5 mb-3">
+        <div className="flex items-center justify-between gap-2">
+          <div
+            className="cursor-pointer group transition-all flex-1"
+            onClick={() => setActiveTab('dashboard')}
+            title="WealthFlow - Gestion de Finance"
+          >
+            <BrandLogo size="md" showBadge={true} withDarkContainer={true} className="w-full" />
+          </div>
+
+          {/* Actions utilisateur */}
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            {/* Verrouillage */}
+            <button
+              onClick={lockApp}
+              className="w-8 h-8 rounded-lg bg-[#F7F7F7] flex items-center justify-center cursor-pointer transition-colors"
+              title="Verrouiller l'application"
+            >
+              <Lock className="w-4 h-4 text-[#52525B]" />
+            </button>
+
+            {/* Avatar Profil */}
+            <button
+              onClick={() => setActiveTab('settings')}
+              className="w-8 h-8 rounded-full bg-[#18181B] flex items-center justify-center cursor-pointer transition-transform"
+              title="Mon profil"
+            >
+              <span className="text-white text-[10px] font-black">
+                {userProfile.name
+                  ? userProfile.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+                  : 'WF'}
+              </span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -89,7 +114,7 @@ export const Sidebar: React.FC = () => {
         <button
           id="btn-new-transaction-sidebar"
           onClick={() => setIsNewTransactionModalOpen(true)}
-          className="w-full flex items-center justify-center space-x-2 py-2.5 px-3.5 rounded-xl bg-[#FF5330] hover:bg-[#E84524] active:scale-[0.98] text-white font-bold text-xs shadow-2xs transition-all cursor-pointer"
+          className="w-full flex items-center justify-center space-x-2 py-2.5 px-3.5 rounded-xl bg-[#FF5330] active:scale-[0.98] text-white font-bold text-xs shadow-2xs transition-all cursor-pointer"
         >
           <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
           <span>Nouvelle transaction</span>
@@ -114,7 +139,7 @@ export const Sidebar: React.FC = () => {
                   className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                     isActive
                       ? 'bg-[#FF5330]/10 text-[#FF5330]'
-                      : 'text-[#52525B] hover:text-[#18181B] hover:bg-[#F7F7F7]'
+                      : 'text-[#52525B]'
                   }`}
                 >
                   <div className="flex items-center space-x-2.5">
@@ -139,7 +164,7 @@ export const Sidebar: React.FC = () => {
       </nav>
 
       {/* Financial Health / Progress Widget */}
-      <div className="mt-3 pt-3 border-t border-[#E8E8E8] space-y-2">
+      <div className="mt-3 pt-3 border-t border-[#E8E8E8]">
         <div className="p-2.5 rounded-xl bg-[#F7F7F7] border border-[#E8E8E8] space-y-1.5">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-semibold text-[#18181B] flex items-center space-x-1">
@@ -151,40 +176,9 @@ export const Sidebar: React.FC = () => {
           <div className="w-full h-1.5 bg-[#E8E8E8] rounded-full overflow-hidden">
             <div className="h-full bg-[#FF5330] rounded-full transition-all duration-500" style={{ width: '78%' }} />
           </div>
-          <p className="text-[10px] text-[#6F6F73] font-medium flex items-center justify-between">
-            <span>Vous êtes sur la bonne voie !</span>
+          <p className="text-[10px] text-[#6F6F73] font-medium">
+            Vous êtes sur la bonne voie !
           </p>
-        </div>
-
-        {/* User Card & Lock button */}
-        <div className="flex items-center justify-between p-1.5 rounded-lg hover:bg-[#F7F7F7] transition-colors">
-          <div
-            className="flex items-center space-x-2 cursor-pointer flex-1 min-w-0"
-            onClick={() => setActiveTab('settings')}
-          >
-            <div className="w-7 h-7 rounded-full bg-[#18181B] text-white font-bold text-[11px] flex items-center justify-center flex-shrink-0">
-              {userProfile.name
-                ? userProfile.name
-                    .split(' ')
-                    .map((n) => n[0])
-                    .join('')
-                    .slice(0, 2)
-                    .toUpperCase()
-                : 'WF'}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-bold text-[#18181B] truncate">{userProfile.name}</p>
-              <p className="text-[10px] text-[#6F6F73] truncate">{userProfile.email}</p>
-            </div>
-          </div>
-          <button
-            id="btn-lock-app-sidebar"
-            onClick={lockApp}
-            title="Verrouiller l’application"
-            className="p-1 rounded-lg text-[#71717A] hover:text-[#18181B] hover:bg-[#E8E8E8] transition-colors cursor-pointer"
-          >
-            <Lock className="w-3.5 h-3.5" />
-          </button>
         </div>
       </div>
     </aside>

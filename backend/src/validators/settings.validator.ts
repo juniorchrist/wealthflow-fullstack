@@ -5,15 +5,15 @@ import { z } from 'zod';
  */
 export const updateSettingsSchema = z.object({
   body: z.object({
-    firstName: z
+    prenom: z
       .string()
       .min(1, 'Le prénom est requis')
       .optional(),
-    lastName: z
+    nom: z
       .string()
       .min(1, 'Le nom est requis')
       .optional(),
-    phone: z
+    numero: z
       .string()
       .optional()
       .nullable(),

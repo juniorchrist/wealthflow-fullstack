@@ -3,30 +3,29 @@ import {
   ArrowRight,
   BarChart3,
   Bell,
-  Check,
   ChevronDown,
-  ChevronRight,
-  Eye,
   Fingerprint,
-  Home,
   KeyRound,
   List,
   Lock,
   Menu,
   PiggyBank,
   Plus,
-  Search,
   Shield,
   ShieldCheck,
   Target,
   Wallet,
   X,
 } from 'lucide-react';
+import { BrandLogo } from '../common/BrandLogo';
 import { useWealth } from '../../context/WealthContext';
+import { AdminLoginModal } from '../admin/AdminLoginModal';
 
 export const LandingView: React.FC = () => {
   const { setIsAuthModalOpen, setAuthModalMode } = useWealth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [adminLockHovered, setAdminLockHovered] = useState(false);
+  const [adminLoginOpen, setAdminLoginOpen] = useState(false);
 
   const handleOpenAuth = (mode: 'login' | 'register') => {
     setAuthModalMode(mode);
@@ -97,22 +96,18 @@ export const LandingView: React.FC = () => {
           <div className="flex items-center justify-between h-14 sm:h-16">
             {/* Logo */}
             <div className="flex items-center gap-2.5 flex-shrink-0">
-              <img
-                src="/LOGOwealthflow.png"
-                alt="WealthFlow"
-                className="h-7 sm:h-8 w-auto"
-              />
+              <BrandLogo size="sm" showBadge={false} withDarkContainer={false} useOfficialLogo={true} />
             </div>
 
             {/* Desktop Nav Links */}
             <div className="hidden md:flex items-center gap-6">
-              <a href="#features" className="text-xs font-semibold text-[#6F6F73] hover:text-[#18181B] transition-colors">
+              <a href="#features" className="text-xs font-semibold text-[#6F6F73] transition-colors">
                 Fonctionnalités
               </a>
-              <a href="#how-it-works" className="text-xs font-semibold text-[#6F6F73] hover:text-[#18181B] transition-colors">
+              <a href="#how-it-works" className="text-xs font-semibold text-[#6F6F73] transition-colors">
                 Comment ça marche
               </a>
-              <a href="#security" className="text-xs font-semibold text-[#6F6F73] hover:text-[#18181B] transition-colors">
+              <a href="#security" className="text-xs font-semibold text-[#6F6F73] transition-colors">
                 Sécurité
               </a>
             </div>
@@ -121,13 +116,13 @@ export const LandingView: React.FC = () => {
             <div className="hidden md:flex items-center gap-2.5">
               <button
                 onClick={() => handleOpenAuth('login')}
-                className="px-4 py-2 text-xs font-bold text-[#18181B] hover:bg-[#F7F7F7] rounded-lg transition-colors cursor-pointer"
+                className="px-4 py-2 text-xs font-bold text-[#18181B] rounded-lg transition-colors cursor-pointer"
               >
                 Se connecter
               </button>
               <button
                 onClick={() => handleOpenAuth('register')}
-                className="px-4 py-2 bg-[#FF5330] hover:bg-[#E84524] text-white text-xs font-bold rounded-lg transition-colors cursor-pointer active:scale-95"
+                className="px-4 py-2 bg-[#FF5330] text-white text-xs font-bold rounded-lg transition-colors cursor-pointer active:scale-95"
               >
                 Commencer gratuitement
               </button>
@@ -136,7 +131,7 @@ export const LandingView: React.FC = () => {
             {/* Mobile Hamburger */}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="md:hidden w-9 h-9 flex items-center justify-center rounded-lg hover:bg-[#F7F7F7] transition-colors cursor-pointer"
+              className="md:hidden w-9 h-9 flex items-center justify-center rounded-lg transition-colors cursor-pointer"
               aria-label="Menu"
             >
               {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -151,34 +146,34 @@ export const LandingView: React.FC = () => {
               <a
                 href="#features"
                 onClick={() => setMobileMenuOpen(false)}
-                className="block px-3 py-2.5 text-sm font-semibold text-[#18181B] rounded-lg hover:bg-[#F7F7F7] transition-colors"
+                className="block px-3 py-2.5 text-sm font-semibold text-[#18181B] rounded-lg transition-colors"
               >
                 Fonctionnalités
               </a>
               <a
                 href="#how-it-works"
                 onClick={() => setMobileMenuOpen(false)}
-                className="block px-3 py-2.5 text-sm font-semibold text-[#18181B] rounded-lg hover:bg-[#F7F7F7] transition-colors"
+                className="block px-3 py-2.5 text-sm font-semibold text-[#18181B] rounded-lg transition-colors"
               >
                 Comment ça marche
               </a>
               <a
                 href="#security"
                 onClick={() => setMobileMenuOpen(false)}
-                className="block px-3 py-2.5 text-sm font-semibold text-[#18181B] rounded-lg hover:bg-[#F7F7F7] transition-colors"
+                className="block px-3 py-2.5 text-sm font-semibold text-[#18181B] rounded-lg transition-colors"
               >
                 Sécurité
               </a>
               <div className="pt-3 border-t border-[#F0F0F0] space-y-2">
                 <button
                   onClick={() => handleOpenAuth('login')}
-                  className="w-full py-2.5 text-sm font-bold text-[#18181B] border border-[#E8E8E8] rounded-xl hover:bg-[#F7F7F7] transition-colors cursor-pointer"
+                  className="w-full py-2.5 text-sm font-bold text-[#18181B] border border-[#E8E8E8] rounded-xl transition-colors cursor-pointer"
                 >
                   Se connecter
                 </button>
                 <button
                   onClick={() => handleOpenAuth('register')}
-                  className="w-full py-2.5 text-sm font-bold text-white bg-[#FF5330] hover:bg-[#E84524] rounded-xl transition-colors cursor-pointer"
+                  className="w-full py-2.5 text-sm font-bold text-white bg-[#FF5330] rounded-xl transition-colors cursor-pointer"
                 >
                   Commencer gratuitement
                 </button>
@@ -220,7 +215,7 @@ export const LandingView: React.FC = () => {
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
               <button
                 onClick={() => handleOpenAuth('register')}
-                className="w-full sm:w-auto px-8 py-3.5 bg-[#FF5330] hover:bg-[#E84524] text-white font-bold text-sm rounded-xl transition-all cursor-pointer active:scale-95 shadow-[0_4px_14px_rgba(255,83,48,0.3)]"
+                className="w-full sm:w-auto px-8 py-3.5 bg-[#FF5330] text-white font-bold text-sm rounded-xl transition-all cursor-pointer active:scale-95 shadow-[0_4px_14px_rgba(255,83,48,0.3)]"
               >
                 Commencer gratuitement
               </button>
@@ -228,7 +223,7 @@ export const LandingView: React.FC = () => {
                 onClick={() => {
                   document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' });
                 }}
-                className="w-full sm:w-auto px-8 py-3.5 bg-white border border-[#E8E8E8] hover:border-[#FF5330]/40 text-[#18181B] font-bold text-sm rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2"
+                className="w-full sm:w-auto px-8 py-3.5 bg-white border border-[#E8E8E8] text-[#18181B] font-bold text-sm rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2"
               >
                 <span>Découvrir WealthFlow</span>
                 <ChevronDown className="w-4 h-4" />
@@ -242,9 +237,7 @@ export const LandingView: React.FC = () => {
             <div className="rounded-2xl sm:rounded-3xl bg-[#18181B] border border-[#27272A] p-4 sm:p-6 shadow-2xl">
               {/* Top bar */}
               <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <img src="/LOGOwealthflow.png" alt="WealthFlow" className="h-5 w-auto" />
-                </div>
+                <BrandLogo size="sm" showBadge={false} withDarkContainer={false} useOfficialLogo={true} />
                 <div className="flex items-center gap-1.5">
                   <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-[#FF5330] to-[#FF8A65] flex items-center justify-center">
                     <span className="text-[9px] font-black text-white">WF</span>
@@ -310,9 +303,9 @@ export const LandingView: React.FC = () => {
               return (
                 <div
                   key={index}
-                  className="p-5 sm:p-6 rounded-2xl bg-white border border-[#E8E8E8] hover:border-[#FF5330]/30 transition-colors group"
+                  className="p-5 sm:p-6 rounded-2xl bg-white border border-[#E8E8E8] transition-colors group"
                 >
-                  <div className="w-10 h-10 rounded-xl bg-[#FF5330]/8 flex items-center justify-center mb-4 group-hover:bg-[#FF5330]/15 transition-colors">
+                  <div className="w-10 h-10 rounded-xl bg-[#FF5330]/8 flex items-center justify-center mb-4 group-transition-colors">
                     <Icon className="w-5 h-5 text-[#FF5330]" strokeWidth={2} />
                   </div>
                   <h3 className="font-extrabold text-sm sm:text-base text-[#18181B] mb-1.5">{feature.title}</h3>
@@ -409,8 +402,8 @@ export const LandingView: React.FC = () => {
               <div className="w-full max-w-sm rounded-3xl bg-[#121214] border border-white/10 p-6 space-y-5">
                 {/* Lock screen mockup */}
                 <div className="text-center space-y-3">
-                  <div className="w-14 h-14 rounded-2xl bg-[#121214] border border-[#27272A] flex items-center justify-center mx-auto">
-                    <img src="/LOGOwealthflow.png" alt="WealthFlow" className="h-8 w-auto" />
+                  <div className="w-14 h-14 rounded-2xl bg-[#121214] border border-[#27272A] flex items-center justify-center mx-auto p-2">
+                    <BrandLogo size="sm" showBadge={false} withDarkContainer={false} useOfficialLogo={true} />
                   </div>
                   <div>
                     <p className="text-sm font-bold text-white">Bonjour, Junior</p>
@@ -468,7 +461,7 @@ export const LandingView: React.FC = () => {
           </p>
           <button
             onClick={() => handleOpenAuth('register')}
-            className="inline-flex items-center gap-2 px-8 py-3.5 bg-[#FF5330] hover:bg-[#E84524] text-white font-bold text-sm rounded-xl transition-all cursor-pointer active:scale-95 shadow-[0_4px_14px_rgba(255,83,48,0.3)]"
+            className="inline-flex items-center gap-2 px-8 py-3.5 bg-[#FF5330] text-white font-bold text-sm rounded-xl transition-all cursor-pointer active:scale-95 shadow-[0_4px_14px_rgba(255,83,48,0.3)]"
           >
             <span>Commencer gratuitement</span>
             <ArrowRight className="w-4 h-4" />
@@ -482,7 +475,9 @@ export const LandingView: React.FC = () => {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-8">
             {/* Brand */}
             <div className="col-span-2 sm:col-span-1">
-              <img src="/LOGOwealthflow.png" alt="WealthFlow" className="h-6 w-auto mb-3" />
+              <div className="mb-3">
+                <BrandLogo size="sm" showBadge={false} withDarkContainer={false} useOfficialLogo={true} />
+              </div>
               <p className="text-xs text-[#6F6F73] leading-relaxed max-w-xs">
                 Gestion financière personnelle simple, sécurisée et efficace.
               </p>
@@ -492,9 +487,9 @@ export const LandingView: React.FC = () => {
             <div>
               <h4 className="text-xs font-bold text-[#18181B] uppercase tracking-wider mb-3">Produit</h4>
               <ul className="space-y-2">
-                <li><a href="#features" className="text-xs text-[#6F6F73] hover:text-[#18181B] transition-colors">Fonctionnalités</a></li>
-                <li><a href="#how-it-works" className="text-xs text-[#6F6F73] hover:text-[#18181B] transition-colors">Comment ça marche</a></li>
-                <li><a href="#security" className="text-xs text-[#6F6F73] hover:text-[#18181B] transition-colors">Sécurité</a></li>
+                <li><a href="#features" className="text-xs text-[#6F6F73] transition-colors">Fonctionnalités</a></li>
+                <li><a href="#how-it-works" className="text-xs text-[#6F6F73] transition-colors">Comment ça marche</a></li>
+                <li><a href="#security" className="text-xs text-[#6F6F73] transition-colors">Sécurité</a></li>
               </ul>
             </div>
 
@@ -522,12 +517,40 @@ export const LandingView: React.FC = () => {
             <p className="text-[11px] text-[#A1A1AA]">
               &copy; {new Date().getFullYear()} WealthFlow. Tous droits réservés.
             </p>
-            <p className="text-[11px] text-[#A1A1AA]">
-              Conçu avec soin pour votre finances.
-            </p>
+            <div className="flex items-center gap-3">
+              <p className="text-[11px] text-[#A1A1AA]">
+                Conçu avec soin pour votre finances.
+              </p>
+              {/* Cadenas admin — visible seulement au hover, discret */}
+              <button
+                onMouseEnter={() => setAdminLockHovered(true)}
+                onMouseLeave={() => setAdminLockHovered(false)}
+                onClick={() => setAdminLoginOpen(true)}
+                title=""
+                aria-label="Accès restreint"
+                className="group relative flex items-center justify-center w-6 h-6 rounded-md transition-all duration-200 cursor-pointer"
+              >
+                <Lock
+                  className={`w-3 h-3 transition-all duration-200 ${
+                    adminLockHovered ? 'text-[#A1A1AA]' : 'text-[#E8E8E8]'
+                  }`}
+                />
+                {/* Tooltip au hover */}
+                {adminLockHovered && (
+                  <span className="absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap px-2 py-0.5 rounded-md bg-[#18181B] text-white text-[9px] font-bold pointer-events-none">
+                    Admin
+                  </span>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       </footer>
+
+      {/* Modal connexion admin */}
+      {adminLoginOpen && (
+        <AdminLoginModal onClose={() => setAdminLoginOpen(false)} />
+      )}
     </div>
   );
 };

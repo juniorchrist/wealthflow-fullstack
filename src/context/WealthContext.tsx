@@ -1,5 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import confetti from 'canvas-confetti';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import {
   initialCategories,
   initialChartData,
@@ -9,6 +8,7 @@ import {
   initialUserProfile,
 } from '../data/initialData';
 import { ActiveTab, AppRoute, Category, MonthlyChartData, NotificationItem, SavingsGoal, Transaction, UserProfile } from '../types';
+import { api, getAuthToken, clearAuthTokens } from '../services/api';
 
 interface WealthContextType {
   userProfile: UserProfile;
@@ -24,10 +24,6 @@ interface WealthContextType {
   login: (credentials?: { email?: string; name?: string }) => void;
   registerUser: (data: { name: string; email: string; currency: string }) => void;
   logout: () => void;
-  isAuthModalOpen: boolean;
-  setIsAuthModalOpen: (open: boolean) => void;
-  authModalMode: 'login' | 'register';
-  setAuthModalMode: (mode: 'login' | 'register') => void;
   
   // Transactions
   transactions: Transaction[];
@@ -68,8 +64,17 @@ interface WealthContextType {
   // Loading Screen State & Controller
   isLoading: boolean;
   loadingMessage: string;
-  simulateLoading: (durationMs?: number, customMessage?: string) => void;
+  simulateLoading: (message?: string) => void;
   finishLoading: () => void;
+  
+  // Auth Modal
+  isAuthModalOpen: boolean;
+  setIsAuthModalOpen: (open: boolean) => void;
+  authModalMode: 'login' | 'register';
+  setAuthModalMode: (mode: 'login' | 'register') => void;
+  // Admin session
+  isAdminAuthenticated: boolean;
+  setIsAdminAuthenticated: (v: boolean) => void;
 
   // Financial Computations
   totalBalance: number;
@@ -91,9 +96,9 @@ interface WealthContextType {
   setIsNewCategoryModalOpen: (open: boolean) => void;
   isEditBudgetModalOpen: boolean;
   setIsEditBudgetModalOpen: (open: boolean) => void;
+  autoDistributeBudgets: (incomeBase: number) => void;
   resetAllData: () => void;
   exportDataJSON: () => void;
-  triggerConfetti: () => void;
 }
 
 const WealthContext = createContext<WealthContextType | undefined>(undefined);
@@ -154,8 +159,7 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     localStorage.setItem(STORAGE_KEYS.LAST_TAB, tab);
   };
 
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('login');
+
 
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
     try {
@@ -200,21 +204,126 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   });
 
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [loadingMessage, setLoadingMessage] = useState<string>('');
+  const [loadingMessage, setLoadingMessage] = useState<string>('Chargement de votre espace...');
 
   const finishLoading = () => {
     setIsLoading(false);
-    setLoadingMessage('');
   };
 
-  const simulateLoading = (durationMs = 1500, customMessage = '') => {
-    setLoadingMessage(customMessage);
+  const simulateLoading = (message?: string) => {
+    if (message) setLoadingMessage(message);
     setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      setLoadingMessage('');
-    }, durationMs);
   };
+
+  // Auth Modal
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('login');
+
+  // Admin session — indépendant de l'auth utilisateur
+  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
+
+  // Charger les données distantes depuis l'API Backend Supabase
+  const refreshRemoteData = useCallback(async () => {
+    const token = getAuthToken();
+    if (!token) return;
+
+    try {
+      // 1. Profil
+      const profileRes = await api.auth.me();
+      if (profileRes.success && profileRes.data) {
+        const u = profileRes.data;
+        setUserProfile((prev) => ({
+          ...prev,
+          name: `${u.prenom || ''} ${u.nom || ''}`.trim() || prev.name,
+          email: u.email || prev.email,
+          phone: u.numero || prev.phone,
+          currency: u.currency || prev.currency,
+          language: u.language || prev.language,
+          timezone: u.timezone || prev.timezone,
+          dateFormat: u.dateFormat || prev.dateFormat,
+          plan: u.plan || prev.plan,
+          isPinEnabled: u.isPinEnabled ?? prev.isPinEnabled,
+        }));
+      }
+
+      // 2. Transactions
+      const txRes = await api.transactions.getAll({ limit: 100 });
+      if (txRes.success && txRes.data?.transactions) {
+        const remoteTxs: Transaction[] = txRes.data.transactions.map((t: any) => ({
+          id: t.id,
+          title: t.title,
+          amount: t.amount,
+          type: t.type as any,
+          category: t.category?.name || 'Général',
+          categoryId: t.categoryId,
+          account: t.account?.name || 'Compte principal',
+          date: t.date ? new Date(t.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+          time: t.time || '12:00',
+          notes: t.notes || '',
+        }));
+        if (remoteTxs.length > 0) {
+          setTransactions(remoteTxs);
+        }
+      }
+
+      // 3. Catégories
+      const catRes = await api.categories.getAll();
+      if (catRes.success && Array.isArray(catRes.data) && catRes.data.length > 0) {
+        const remoteCats: Category[] = catRes.data.map((c: any) => ({
+          id: c.id,
+          name: c.name,
+          icon: c.icon || 'Tag',
+          color: c.color || '#FF5330',
+          budgetLimit: c.budgetLimit || 0,
+          type: c.type as 'expense' | 'income',
+        }));
+        setCategories(remoteCats);
+      }
+
+      // 4. Objectifs d'épargne
+      const goalsRes = await api.savings.getAll();
+      if (goalsRes.success && Array.isArray(goalsRes.data) && goalsRes.data.length > 0) {
+        const remoteGoals: SavingsGoal[] = goalsRes.data.map((g: any) => ({
+          id: g.id,
+          title: g.title,
+          targetAmount: g.targetAmount,
+          currentAmount: g.currentAmount || 0,
+          deadline: g.deadline || '',
+          icon: g.icon || 'Target',
+          color: g.color || '#3B82F6',
+          description: g.description || '',
+          isAutoSaveActive: g.isAutoSaveActive || false,
+          autoSaveAmount: g.autoSaveAmount || undefined,
+          checkboxesCount: g.checkboxesCount || 10,
+          checkedBoxes: g.checkedBoxes || [],
+        }));
+        setSavingsGoals(remoteGoals);
+      }
+
+      // 5. Notifications
+      const notifRes = await api.notifications.getAll();
+      if (notifRes.success && Array.isArray(notifRes.data) && notifRes.data.length > 0) {
+        const remoteNotifs: NotificationItem[] = notifRes.data.map((n: any) => ({
+          id: n.id,
+          title: n.title,
+          message: n.message,
+          date: n.createdAt ? new Date(n.createdAt).toLocaleDateString('fr-FR') : 'Récemment',
+          read: n.read || false,
+          type: (n.type as any) || 'info',
+        }));
+        setNotifications(remoteNotifs);
+      }
+    } catch (err) {
+      console.warn('[WealthFlow API] Erreur lors du chargement des données distantes:', err);
+    }
+  }, []);
+
+  // Déclencher le chargement distant quand la session est active
+  useEffect(() => {
+    if (isAuthenticated) {
+      refreshRemoteData();
+    }
+  }, [isAuthenticated, refreshRemoteData]);
 
   // Auth methods
   const login = (credentials?: { email?: string; name?: string }) => {
@@ -229,8 +338,7 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     localStorage.setItem(STORAGE_KEYS.SESSION, 'true');
     setCurrentRoute('app');
     setIsLocked(false);
-    setIsAuthModalOpen(false);
-    simulateLoading(1000, 'Connexion à votre espace WealthFlow...');
+    refreshRemoteData();
   };
 
   const registerUser = (data: { name: string; email: string; currency: string }) => {
@@ -244,11 +352,12 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     localStorage.setItem(STORAGE_KEYS.SESSION, 'true');
     setCurrentRoute('app');
     setIsLocked(false);
-    setIsAuthModalOpen(false);
-    simulateLoading(1200, 'Création de votre coffre-fort WealthFlow...');
+    refreshRemoteData();
   };
 
   const logout = () => {
+    api.auth.logout().catch(() => {});
+    clearAuthTokens();
     setIsAuthenticated(false);
     localStorage.setItem(STORAGE_KEYS.SESSION, 'false');
     setCurrentRoute('landing');
@@ -314,75 +423,124 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return `${formatted} ${userProfile.currency || 'FCFA'}`;
   };
 
-  const triggerConfetti = () => {
-    try {
-      confetti({
-        particleCount: 80,
-        spread: 70,
-        origin: { y: 0.6 },
-        colors: ['#FF5330', '#18181B', '#10B981', '#F97316'],
-      });
-    } catch {
-      // ignore
-    }
-  };
-
-  // Transaction CRUD
-  const addTransaction = (newTx: Omit<Transaction, 'id'>) => {
+  // Transaction CRUD connecté à l'API Backend
+  const addTransaction = async (newTx: Omit<Transaction, 'id'>) => {
+    const tempId = `tx-${Date.now()}`;
     const tx: Transaction = {
       ...newTx,
-      id: `tx-${Date.now()}`,
+      id: tempId,
     };
     setTransactions((prev) => [tx, ...prev]);
 
-    // If it's a savings deposit, link to relevant goal if match found
-    if (newTx.type === 'savings_deposit') {
-      triggerConfetti();
+    try {
+      const res = await api.transactions.create({
+        title: newTx.title,
+        amount: Number(newTx.amount),
+        type: newTx.type,
+        categoryId: newTx.categoryId || 'cat-1',
+        date: newTx.date,
+        time: newTx.time,
+        notes: newTx.notes,
+      });
+
+      if (res.success && res.data?.id) {
+        // Mettre à jour l'ID temporaire avec l'ID réel renvoyé par Supabase
+        setTransactions((prev) =>
+          prev.map((t) => (t.id === tempId ? { ...t, id: res.data.id } : t))
+        );
+      }
+    } catch (err) {
+      console.warn('[WealthFlow API] Erreur lors de l\'ajout de transaction:', err);
     }
   };
 
-  const updateTransaction = (id: string, updates: Partial<Transaction>) => {
+  const updateTransaction = async (id: string, updates: Partial<Transaction>) => {
     setTransactions((prev) => prev.map((t) => (t.id === id ? { ...t, ...updates } : t)));
+    try {
+      await api.transactions.update(id, updates);
+    } catch (err) {
+      console.warn('[WealthFlow API] Erreur lors de la mise à jour de transaction:', err);
+    }
   };
 
-  const deleteTransaction = (id: string) => {
+  const deleteTransaction = async (id: string) => {
     setTransactions((prev) => prev.filter((t) => t.id !== id));
+    try {
+      await api.transactions.delete(id);
+    } catch (err) {
+      console.warn('[WealthFlow API] Erreur lors de la suppression de transaction:', err);
+    }
   };
 
-  // Savings Goal CRUD
-  const addSavingsGoal = (goal: Omit<SavingsGoal, 'id' | 'currentAmount'>) => {
+  // Savings Goal CRUD connecté à l'API Backend
+  const addSavingsGoal = async (goal: Omit<SavingsGoal, 'id' | 'currentAmount'>) => {
+    const tempId = `goal-${Date.now()}`;
     const newGoal: SavingsGoal = {
       ...goal,
-      id: `goal-${Date.now()}`,
+      id: tempId,
       currentAmount: 0,
       checkboxesCount: goal.checkboxesCount || 10,
       checkedBoxes: [],
     };
     setSavingsGoals((prev) => [...prev, newGoal]);
-    triggerConfetti();
+
+    try {
+      const res = await api.savings.create({
+        title: goal.title,
+        targetAmount: Number(goal.targetAmount),
+        deadline: goal.deadline || '',
+        icon: goal.icon || 'Target',
+        color: goal.color || '#3B82F6',
+        description: goal.description,
+      });
+
+      if (res.success && res.data?.id) {
+        setSavingsGoals((prev) =>
+          prev.map((g) => (g.id === tempId ? { ...g, id: res.data.id } : g))
+        );
+      }
+    } catch (err) {
+      console.warn('[WealthFlow API] Erreur lors de l\'ajout d\'objectif:', err);
+    }
   };
 
-  const updateSavingsGoal = (id: string, updates: Partial<SavingsGoal>) => {
+  const updateSavingsGoal = async (id: string, updates: Partial<SavingsGoal>) => {
     setSavingsGoals((prev) => prev.map((g) => (g.id === id ? { ...g, ...updates } : g)));
+    try {
+      await api.savings.update(id, updates);
+    } catch (err) {
+      console.warn('[WealthFlow API] Erreur lors de la mise à jour d\'objectif:', err);
+    }
   };
 
-  const deleteSavingsGoal = (id: string) => {
+  const deleteSavingsGoal = async (id: string) => {
     setSavingsGoals((prev) => prev.filter((g) => g.id !== id));
+    try {
+      await api.savings.delete(id);
+    } catch (err) {
+      console.warn('[WealthFlow API] Erreur lors de la suppression d\'objectif:', err);
+    }
   };
 
-  const contributeToGoal = (id: string, amount: number) => {
+  const contributeToGoal = async (id: string, amount: number) => {
     setSavingsGoals((prev) =>
       prev.map((g) => {
         if (g.id === id) {
           const updatedAmount = Math.min(g.targetAmount, g.currentAmount + amount);
-          if (updatedAmount >= g.targetAmount) {
-            triggerConfetti();
-          }
           return { ...g, currentAmount: updatedAmount };
         }
         return g;
       })
     );
+
+    try {
+      await api.savings.deposit(id, {
+        amount,
+        date: new Date().toISOString(),
+      });
+    } catch (err) {
+      console.warn('[WealthFlow API] Erreur lors du dépôt d\'épargne:', err);
+    }
 
     // Also record as transaction
     const targetGoal = savingsGoals.find((g) => g.id === id);
@@ -417,10 +575,6 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
         const newCheckedBoxes = Array.from(checked);
         const calculatedAmount = Math.min(goal.targetAmount, Math.round(newCheckedBoxes.length * unitValue));
-        
-        if (calculatedAmount >= goal.targetAmount) {
-          triggerConfetti();
-        }
 
         return {
           ...goal,
@@ -437,34 +591,97 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     );
   };
 
-  // Category CRUD
-  const addCategory = (cat: Omit<Category, 'id'>) => {
+  // Category CRUD connecté à l'API Backend
+  const addCategory = async (cat: Omit<Category, 'id'>) => {
+    const tempId = `cat-${Date.now()}`;
     const newCat: Category = {
       ...cat,
-      id: `cat-${Date.now()}`,
+      id: tempId,
     };
     setCategories((prev) => [...prev, newCat]);
+
+    try {
+      const res = await api.categories.create({
+        name: cat.name,
+        icon: cat.icon,
+        color: cat.color,
+        budgetLimit: Number(cat.budgetLimit) || 0,
+        type: cat.type,
+      });
+
+      if (res.success && res.data?.id) {
+        setCategories((prev) =>
+          prev.map((c) => (c.id === tempId ? { ...c, id: res.data.id } : c))
+        );
+      }
+    } catch (err) {
+      console.warn('[WealthFlow API] Erreur lors de l\'ajout de catégorie:', err);
+    }
   };
 
-  const updateCategory = (id: string, updates: Partial<Category>) => {
+  const updateCategory = async (id: string, updates: Partial<Category>) => {
     setCategories((prev) => prev.map((c) => (c.id === id ? { ...c, ...updates } : c)));
+    try {
+      await api.categories.update(id, updates);
+    } catch (err) {
+      console.warn('[WealthFlow API] Erreur lors de la mise à jour de catégorie:', err);
+    }
   };
 
-  const deleteCategory = (id: string) => {
+  const deleteCategory = async (id: string) => {
     setCategories((prev) => prev.filter((c) => c.id !== id));
+    try {
+      await api.categories.delete(id);
+    } catch (err) {
+      console.warn('[WealthFlow API] Erreur lors de la suppression de catégorie:', err);
+    }
   };
 
-  // Notification CRUD
-  const markNotificationAsRead = (id: string) => {
+  // Distribute budgets automatically based on totalIncome
+  // Uses a simplified 50/30/20 split across expense categories, weighted by existing limits
+  const autoDistributeBudgets = (incomeBase: number) => {
+    const expenseCats = categories.filter((c) => c.type === 'expense');
+    if (expenseCats.length === 0) return;
+
+    // 70% of income allocated to expense categories
+    const allocatable = Math.round(incomeBase * 0.7);
+    const totalExistingLimits = expenseCats.reduce((s, c) => s + (c.budgetLimit || 1), 0);
+
+    setCategories((prev) =>
+      prev.map((c) => {
+        if (c.type !== 'expense') return c;
+        const weight = (c.budgetLimit || 1) / totalExistingLimits;
+        return { ...c, budgetLimit: Math.round(allocatable * weight) };
+      })
+    );
+  };
+
+  // Notification CRUD connecté à l'API Backend
+  const markNotificationAsRead = async (id: string) => {
     setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
+    try {
+      await api.notifications.markRead(id);
+    } catch (err) {
+      console.warn('[WealthFlow API] Erreur lors de la mise à jour de notification:', err);
+    }
   };
 
-  const markAllNotificationsAsRead = () => {
+  const markAllNotificationsAsRead = async () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    try {
+      await api.notifications.markAllRead();
+    } catch (err) {
+      console.warn('[WealthFlow API] Erreur lors du marquage des notifications:', err);
+    }
   };
 
-  const deleteNotification = (id: string) => {
+  const deleteNotification = async (id: string) => {
     setNotifications((prev) => prev.filter((n) => n.id !== id));
+    try {
+      await api.notifications.delete(id);
+    } catch (err) {
+      console.warn('[WealthFlow API] Erreur lors de la suppression de notification:', err);
+    }
   };
 
   // Profile & Security
@@ -544,6 +761,8 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setIsAuthModalOpen,
         authModalMode,
         setAuthModalMode,
+        isAdminAuthenticated,
+        setIsAdminAuthenticated,
         transactions,
         addTransaction,
         updateTransaction,
@@ -589,9 +808,9 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setIsNewCategoryModalOpen,
         isEditBudgetModalOpen,
         setIsEditBudgetModalOpen,
+        autoDistributeBudgets,
         resetAllData,
         exportDataJSON,
-        triggerConfetti,
       }}
     >
       {children}

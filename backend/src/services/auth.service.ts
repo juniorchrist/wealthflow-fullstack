@@ -44,9 +44,9 @@ export const register = async (data: RegisterInput): Promise<AuthResponse> => {
   const user = await createUser({
     email: data.email,
     passwordHash,
-    firstName: data.firstName,
-    lastName: data.lastName,
-    phone: data.phone,
+    nom: data.nom,
+    prenom: data.prenom,
+    numero: data.numero,
     currency: data.currency,
   });
 

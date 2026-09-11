@@ -1,5 +1,6 @@
 import React from 'react';
 import { useWealth } from '../../context/WealthContext';
+import { AdminView } from '../admin/AdminView';
 import { AnalyticsView } from '../analytics/AnalyticsView';
 import { AuthModal } from '../auth/AuthModal';
 import { BudgetView } from '../budget/BudgetView';
@@ -21,7 +22,7 @@ import { MobileBottomNav } from './MobileBottomNav';
 import { Sidebar } from './Sidebar';
 
 export const AppShell: React.FC = () => {
-  const { activeTab, isLocked, isLoading, finishLoading, loadingMessage, currentRoute, isAuthenticated } = useWealth();
+  const { activeTab, isLocked, isLoading, finishLoading, loadingMessage, currentRoute, isAuthenticated, isAdminAuthenticated } = useWealth();
 
   const renderActiveView = () => {
     switch (activeTab) {
@@ -55,7 +56,12 @@ export const AppShell: React.FC = () => {
     return <LoadingScreen onFinished={finishLoading} message={loadingMessage} />;
   }
 
-  // 2. Landing Page (not authenticated or on landing route)
+  // 2. Admin — vérifié AVANT l'auth utilisateur (accès indépendant)
+  if (isAdminAuthenticated && activeTab === 'admin') {
+    return <AdminView />;
+  }
+
+  // 3. Landing Page (not authenticated or on landing route)
   if (!isAuthenticated || currentRoute === 'landing') {
     return (
       <>
@@ -65,7 +71,7 @@ export const AppShell: React.FC = () => {
     );
   }
 
-  // 3. Lock Screen (authenticated but locked)
+  // 4. Lock Screen (authenticated but locked)
   if (isLocked) {
     return (
       <>
@@ -75,7 +81,12 @@ export const AppShell: React.FC = () => {
     );
   }
 
-  // 4. Main Application
+  // 5. Admin depuis l'app connectée
+  if (activeTab === 'admin') {
+    return <AdminView />;
+  }
+
+  // 5. Main Application
   return (
     <div id="app-root" className="min-h-screen bg-[#F7F7F7] text-[#18181B] flex flex-col md:flex-row antialiased selection:bg-[#FF5330]/20 selection:text-[#18181B]">
       {/* Desktop Sidebar */}
@@ -86,8 +97,11 @@ export const AppShell: React.FC = () => {
         {/* Header */}
         <Header />
 
-        {/* Dynamic Page View Area */}
-        <main className="flex-1 px-3 sm:px-6 py-3 sm:py-4 max-w-4xl w-full mx-auto pb-24 md:pb-12">
+        {/* Dynamic Page View Area
+            Les vues mobiles (dashboard, transactions, budget, savings) gèrent leur propre padding.
+            Les vues desktop et secondaires bénéficient du padding lg: ici.
+        */}
+        <main className="flex-1 w-full mx-auto max-w-4xl lg:px-6 lg:py-4 lg:pb-12">
           {renderActiveView()}
         </main>
       </div>

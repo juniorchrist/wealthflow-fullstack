@@ -1,0 +1,945 @@
+import React, { useState, useMemo } from 'react';
+import {
+  Activity,
+  AlertTriangle,
+  BarChart3,
+  Bell,
+  CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  ClipboardList,
+  Download,
+  Edit3,
+  Globe,
+  LayoutDashboard,
+  LogOut,
+  MoreHorizontal,
+  PiggyBank,
+  Plus,
+  Save,
+  Search,
+  Settings,
+  Shield,
+  Tags,
+  TrendingDown,
+  TrendingUp,
+  Users,
+  X,
+} from 'lucide-react';
+import { useWealth } from '../../context/WealthContext';
+import { BrandLogo } from '../common/BrandLogo';
+import { CategoryIcon } from '../common/CategoryIcon';
+
+// ─── Types ─────────────────────────────────────────────────────────────────────
+type AdminSection = 'dashboard' | 'users' | 'categories' | 'finances' | 'logs' | 'site-settings';
+
+const ADMIN_NAV: { id: AdminSection; label: string; icon: React.ElementType }[] = [
+  { id: 'dashboard',     label: 'Tableau de bord',    icon: LayoutDashboard },
+  { id: 'users',         label: 'Utilisateurs',       icon: Users },
+  { id: 'categories',    label: 'Catégories',         icon: Tags },
+  { id: 'finances',      label: 'Finances globales',  icon: BarChart3 },
+  { id: 'logs',          label: "Journaux d'activité", icon: ClipboardList },
+  { id: 'site-settings', label: 'Paramètres du site', icon: Settings },
+];
+
+// ─── Données simulées multi-utilisateurs ───────────────────────────────────────
+interface SimUser {
+  id: string;
+  name: string;
+  email: string;
+  plan: string;
+  status: 'actif' | 'inactif';
+  lastLogin: string;
+  joinDate: string;
+  income: number;
+  expenses: number;
+  savings: number;
+  transactions: number;
+  budgetTotal: number;
+}
+
+const SIMULATED_USERS: SimUser[] = [
+  { id: 'u-2', name: 'Aïssatou Diallo', email: 'aissatou.d@example.com', plan: 'Standard', status: 'actif', lastLogin: 'Aujourd\'hui 09:14', joinDate: '12 Jan 2026', income: 650000, expenses: 420000, savings: 180000, transactions: 34, budgetTotal: 500000 },
+  { id: 'u-3', name: 'Kofi Mensah', email: 'k.mensah@example.com', plan: 'WealthFlow Pro', status: 'actif', lastLogin: 'Hier 21:30', joinDate: '03 Mars 2026', income: 1200000, expenses: 870000, savings: 330000, transactions: 87, budgetTotal: 950000 },
+  { id: 'u-4', name: 'Fatou Sow', email: 'fatousow@example.com', plan: 'Standard', status: 'inactif', lastLogin: 'Il y a 14 jours', joinDate: '29 Avr 2026', income: 430000, expenses: 390000, savings: 40000, transactions: 21, budgetTotal: 420000 },
+  { id: 'u-5', name: 'Mamadou Traoré', email: 'mam.traore@example.com', plan: 'WealthFlow Pro', status: 'actif', lastLogin: 'Aujourd\'hui 14:02', joinDate: '08 Fév 2026', income: 2100000, expenses: 1540000, savings: 560000, transactions: 143, budgetTotal: 1800000 },
+  { id: 'u-6', name: 'Awa Coulibaly', email: 'awa.coul@example.com', plan: 'Standard', status: 'inactif', lastLogin: 'Il y a 32 jours', joinDate: '17 Mai 2026', income: 380000, expenses: 350000, savings: 30000, transactions: 12, budgetTotal: 380000 },
+  { id: 'u-7', name: 'Ibrahim Touré', email: 'i.toure@example.com', plan: 'WealthFlow Pro', status: 'actif', lastLogin: 'Hier 18:55', joinDate: '22 Juin 2026', income: 900000, expenses: 640000, savings: 260000, transactions: 59, budgetTotal: 750000 },
+];
+
+// Clé localStorage pour les paramètres du site
+const SITE_SETTINGS_KEY = 'wf_admin_site_settings_v2';
+
+interface SiteSettings {
+  siteName: string;
+  tagline: string;
+  supportEmail: string;
+  announcement: string;
+  maintenanceMode: boolean;
+  allowRegistrations: boolean;
+  defaultPlan: string;
+}
+
+const DEFAULT_SITE_SETTINGS: SiteSettings = {
+  siteName: 'WealthFlow',
+  tagline: 'Gestion financière personnelle simple, sécurisée et efficace.',
+  supportEmail: 'support@wealthflow.app',
+  announcement: '',
+  maintenanceMode: false,
+  allowRegistrations: true,
+  defaultPlan: 'Standard',
+};
+
+function loadSiteSettings(): SiteSettings {
+  try {
+    const saved = localStorage.getItem(SITE_SETTINGS_KEY);
+    return saved ? { ...DEFAULT_SITE_SETTINGS, ...JSON.parse(saved) } : DEFAULT_SITE_SETTINGS;
+  } catch {
+    return DEFAULT_SITE_SETTINGS;
+  }
+}
+
+// ─── Composant principal ───────────────────────────────────────────────────────
+export const AdminView: React.FC = () => {
+  const {
+    transactions,
+    categories,
+    savingsGoals,
+    userProfile,
+    totalIncome,
+    totalExpenses,
+    totalSaved,
+    formatCurrency,
+    setActiveTab,
+    setIsAdminAuthenticated,
+    logout,
+    exportDataJSON,
+    monthlyBudgetTotal,
+  } = useWealth();
+
+  const [activeSection, setActiveSection] = useState<AdminSection>('dashboard');
+  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
+  const [userSearch, setUserSearch] = useState('');
+  const [userFilter, setUserFilter] = useState<'all' | 'actif' | 'inactif'>('all');
+  const [selectedUser, setSelectedUser] = useState<SimUser | null>(null);
+  const [siteSettings, setSiteSettings] = useState<SiteSettings>(loadSiteSettings);
+  const [siteSettingsDraft, setSiteSettingsDraft] = useState<SiteSettings>(loadSiteSettings);
+  const [settingsSaved, setSettingsSaved] = useState(false);
+
+  // Utilisateur actif réel combiné aux simulés
+  const realUser: SimUser = {
+    id: 'u-1',
+    name: userProfile.name || 'Utilisateur actif',
+    email: userProfile.email || '',
+    plan: userProfile.plan || 'WealthFlow Pro',
+    status: 'actif',
+    lastLogin: 'En cours de session',
+    joinDate: '01 Sept 2026',
+    income: totalIncome,
+    expenses: totalExpenses,
+    savings: totalSaved,
+    transactions: transactions.length,
+    budgetTotal: monthlyBudgetTotal,
+  };
+
+  const ALL_USERS: SimUser[] = [realUser, ...SIMULATED_USERS];
+
+  // Statistiques globales agrégées
+  const globalStats = useMemo(() => {
+    const totalUsers = ALL_USERS.length;
+    const activeUsers = ALL_USERS.filter((u) => u.status === 'actif').length;
+    const inactiveUsers = ALL_USERS.filter((u) => u.status === 'inactif').length;
+    const globalIncome = ALL_USERS.reduce((s, u) => s + u.income, 0);
+    const globalExpenses = ALL_USERS.reduce((s, u) => s + u.expenses, 0);
+    const globalSavings = ALL_USERS.reduce((s, u) => s + u.savings, 0);
+    const globalTransactions = ALL_USERS.reduce((s, u) => s + u.transactions, 0);
+    return { totalUsers, activeUsers, inactiveUsers, globalIncome, globalExpenses, globalSavings, globalTransactions };
+  }, [ALL_USERS]);
+
+  // Filtrage utilisateurs
+  const filteredUsers = useMemo(() => {
+    return ALL_USERS.filter((u) => {
+      const matchSearch = userSearch === '' || u.name.toLowerCase().includes(userSearch.toLowerCase()) || u.email.toLowerCase().includes(userSearch.toLowerCase());
+      const matchFilter = userFilter === 'all' || u.status === userFilter;
+      return matchSearch && matchFilter;
+    });
+  }, [ALL_USERS, userSearch, userFilter]);
+
+  // Gestion des paramètres du site
+  const handleSaveSettings = () => {
+    setSiteSettings(siteSettingsDraft);
+    localStorage.setItem(SITE_SETTINGS_KEY, JSON.stringify(siteSettingsDraft));
+    setSettingsSaved(true);
+    setTimeout(() => setSettingsSaved(false), 2000);
+  };
+
+  const handleAdminLogout = () => {
+    setIsAdminAuthenticated(false);
+    setActiveTab('dashboard');
+  };
+
+  // ─── Rendu des sections ────────────────────────────────────────────────────
+  const renderSection = () => {
+    switch (activeSection) {
+
+      // ── TABLEAU DE BORD ──────────────────────────────────────────────────
+      case 'dashboard':
+        return (
+          <div className="space-y-5">
+            <div>
+              <h2 className="text-xl font-black text-[#18181B] tracking-tight">Tableau de bord</h2>
+              <p className="text-xs text-[#6F6F73] mt-0.5">
+                Vue globale de la plateforme — {new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
+              </p>
+            </div>
+
+            {/* KPI Utilisateurs */}
+            <div className="grid grid-cols-3 gap-3">
+              <div className="p-3.5 rounded-xl bg-white border border-[#E8E8E8] shadow-2xs space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-semibold text-[#6F6F73]">Total utilisateurs</span>
+                  <div className="w-6 h-6 rounded-md bg-[#FF5330]/10 flex items-center justify-center">
+                    <Users className="w-3 h-3 text-[#FF5330]" />
+                  </div>
+                </div>
+                <p className="text-2xl font-black text-[#18181B] num-tabular">{globalStats.totalUsers}</p>
+                <div className="flex items-center gap-2 text-[10px]">
+                  <span className="text-[#10B981] font-bold">{globalStats.activeUsers} actifs</span>
+                  <span className="text-[#A1A1AA]">·</span>
+                  <span className="text-[#F97316] font-bold">{globalStats.inactiveUsers} inactifs</span>
+                </div>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-white border border-[#E8E8E8] shadow-2xs space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-semibold text-[#6F6F73]">Transactions totales</span>
+                  <div className="w-6 h-6 rounded-md bg-[#10B981]/10 flex items-center justify-center">
+                    <Activity className="w-3 h-3 text-[#10B981]" />
+                  </div>
+                </div>
+                <p className="text-2xl font-black text-[#18181B] num-tabular">{globalStats.globalTransactions}</p>
+                <p className="text-[10px] text-[#A1A1AA]">tous utilisateurs confondus</p>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-white border border-[#E8E8E8] shadow-2xs space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-semibold text-[#6F6F73]">Catégories</span>
+                  <div className="w-6 h-6 rounded-md bg-[#FF5330]/10 flex items-center justify-center">
+                    <Tags className="w-3 h-3 text-[#FF5330]" />
+                  </div>
+                </div>
+                <p className="text-2xl font-black text-[#18181B] num-tabular">{categories.length}</p>
+                <p className="text-[10px] text-[#A1A1AA]">{categories.filter(c => c.type === 'expense').length} dépenses · {categories.filter(c => c.type === 'income').length} revenus</p>
+              </div>
+            </div>
+
+            {/* KPI Finances globales */}
+            <div className="p-4 rounded-2xl bg-[#18181B] text-white space-y-3">
+              <p className="text-[10px] font-extrabold uppercase tracking-wider text-white/50">Agrégat financier — tous utilisateurs</p>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <p className="text-[10px] text-white/50 mb-0.5">Revenus totaux</p>
+                  <p className="text-sm sm:text-base font-black text-[#10B981] num-tabular">{formatCurrency(globalStats.globalIncome)}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-white/50 mb-0.5">Dépenses totales</p>
+                  <p className="text-sm sm:text-base font-black text-[#EF4444] num-tabular">{formatCurrency(globalStats.globalExpenses)}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-white/50 mb-0.5">Épargne totale</p>
+                  <p className="text-sm sm:text-base font-black text-[#FF5330] num-tabular">{formatCurrency(globalStats.globalSavings)}</p>
+                </div>
+              </div>
+              <div className="pt-2 border-t border-white/10">
+                <div className="flex items-center justify-between text-[11px] text-white/50 mb-1.5">
+                  <span>Ratio dépenses / revenus global</span>
+                  <span className="font-bold text-white">{globalStats.globalIncome > 0 ? Math.round((globalStats.globalExpenses / globalStats.globalIncome) * 100) : 0}%</span>
+                </div>
+                <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
+                  <div className="h-full bg-[#FF5330] rounded-full" style={{ width: `${globalStats.globalIncome > 0 ? Math.min(100, Math.round((globalStats.globalExpenses / globalStats.globalIncome) * 100)) : 0}%` }} />
+                </div>
+              </div>
+            </div>
+
+            {/* Top utilisateurs */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between px-1">
+                <h3 className="font-extrabold text-sm text-[#18181B]">Utilisateurs récents</h3>
+                <button onClick={() => setActiveSection('users')} className="text-xs font-bold text-[#FF5330] flex items-center gap-0.5 hover:underline">
+                  Voir tous <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <div className="rounded-xl bg-white border border-[#E8E8E8] divide-y divide-[#F0F0F0] overflow-hidden">
+                {ALL_USERS.slice(0, 5).map((u) => (
+                  <div key={u.id} className="px-3.5 py-2.5 flex items-center justify-between gap-3 cursor-pointer hover:bg-[#FAFAFA]" onClick={() => { setSelectedUser(u); setActiveSection('users'); }}>
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-7 h-7 rounded-full bg-[#18181B] flex items-center justify-center text-white text-[10px] font-black flex-shrink-0">
+                        {u.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-[#18181B] truncate">{u.name}</p>
+                        <p className="text-[10px] text-[#A1A1AA] truncate">{u.email}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${u.status === 'actif' ? 'bg-[#10B981]/10 text-[#10B981]' : 'bg-[#F97316]/10 text-[#F97316]'}`}>
+                        {u.status}
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-[#FF5330]/10 text-[#FF5330]">{u.plan}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Annonce active */}
+            {siteSettings.announcement && (
+              <div className="p-3.5 rounded-xl bg-[#FF5330]/5 border border-[#FF5330]/20 flex items-start gap-2.5">
+                <Bell className="w-4 h-4 text-[#FF5330] flex-shrink-0 mt-0.5" />
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-[#FF5330]">Annonce active</p>
+                  <p className="text-xs text-[#6F6F73] mt-0.5">{siteSettings.announcement}</p>
+                </div>
+                <button onClick={() => setActiveSection('site-settings')} className="flex-shrink-0 text-[10px] font-bold text-[#FF5330] hover:underline">Modifier</button>
+              </div>
+            )}
+
+            {siteSettings.maintenanceMode && (
+              <div className="p-3.5 rounded-xl bg-[#EF4444]/5 border border-[#EF4444]/20 flex items-center gap-2.5">
+                <AlertTriangle className="w-4 h-4 text-[#EF4444]" />
+                <p className="text-xs font-bold text-[#EF4444]">Mode maintenance activé — le site est inaccessible aux utilisateurs</p>
+              </div>
+            )}
+          </div>
+        );
+
+      // ── UTILISATEURS ─────────────────────────────────────────────────────
+      case 'users':
+        return (
+          <div className="space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-black text-[#18181B] tracking-tight">Utilisateurs</h2>
+                <p className="text-xs text-[#6F6F73] mt-0.5">{globalStats.totalUsers} comptes · {globalStats.activeUsers} actifs · {globalStats.inactiveUsers} inactifs</p>
+              </div>
+              <div className="flex items-center gap-2 text-[10px] font-bold">
+                <span className="px-2.5 py-1 rounded-full bg-[#10B981]/10 text-[#10B981]">{globalStats.activeUsers} actifs</span>
+                <span className="px-2.5 py-1 rounded-full bg-[#F97316]/10 text-[#F97316]">{globalStats.inactiveUsers} inactifs</span>
+              </div>
+            </div>
+
+            {/* Fiche détail utilisateur sélectionné */}
+            {selectedUser && (
+              <div className="p-4 rounded-2xl bg-white border-2 border-[#FF5330]/20 shadow-sm space-y-4">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-full bg-[#18181B] flex items-center justify-center text-white text-lg font-black">
+                      {selectedUser.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                    </div>
+                    <div>
+                      <p className="font-black text-sm text-[#18181B]">{selectedUser.name}</p>
+                      <p className="text-xs text-[#6F6F73]">{selectedUser.email}</p>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${selectedUser.status === 'actif' ? 'bg-[#10B981]/10 text-[#10B981]' : 'bg-[#F97316]/10 text-[#F97316]'}`}>{selectedUser.status}</span>
+                        <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-[#FF5330]/10 text-[#FF5330]">{selectedUser.plan}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <button onClick={() => setSelectedUser(null)} className="p-1 rounded-lg text-[#A1A1AA] cursor-pointer">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* Stats financières de l'utilisateur */}
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { label: 'Revenus', value: formatCurrency(selectedUser.income), color: 'text-[#10B981]' },
+                    { label: 'Dépenses', value: formatCurrency(selectedUser.expenses), color: 'text-[#EF4444]' },
+                    { label: 'Épargne', value: formatCurrency(selectedUser.savings), color: 'text-[#FF5330]' },
+                  ].map((s) => (
+                    <div key={s.label} className="p-2.5 rounded-xl bg-[#F7F7F7] text-center">
+                      <p className="text-[10px] text-[#6F6F73]">{s.label}</p>
+                      <p className={`text-xs font-black num-tabular mt-0.5 ${s.color}`}>{s.value}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="rounded-xl border border-[#E8E8E8] divide-y divide-[#F0F0F0] overflow-hidden">
+                  {[
+                    { label: 'Transactions', value: String(selectedUser.transactions) },
+                    { label: 'Budget mensuel', value: formatCurrency(selectedUser.budgetTotal) },
+                    { label: 'Dernière connexion', value: selectedUser.lastLogin },
+                    { label: 'Inscrit le', value: selectedUser.joinDate },
+                  ].map((row) => (
+                    <div key={row.label} className="flex items-center justify-between px-3 py-2">
+                      <span className="text-[11px] text-[#6F6F73]">{row.label}</span>
+                      <span className="text-[11px] font-bold text-[#18181B]">{row.value}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Barre dépenses/budget */}
+                <div>
+                  <div className="flex items-center justify-between text-[10px] text-[#6F6F73] mb-1">
+                    <span>Utilisation budget</span>
+                    <span className="font-bold text-[#18181B]">{selectedUser.budgetTotal > 0 ? Math.min(100, Math.round((selectedUser.expenses / selectedUser.budgetTotal) * 100)) : 0}%</span>
+                  </div>
+                  <div className="w-full h-1.5 bg-[#F0F0F0] rounded-full overflow-hidden">
+                    <div className="h-full bg-[#FF5330] rounded-full"
+                      style={{ width: `${selectedUser.budgetTotal > 0 ? Math.min(100, Math.round((selectedUser.expenses / selectedUser.budgetTotal) * 100)) : 0}%` }} />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Barre de recherche + filtre */}
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 text-[#A1A1AA] absolute left-3 top-1/2 -translate-y-1/2" />
+                <input type="text" value={userSearch} onChange={(e) => setUserSearch(e.target.value)}
+                  placeholder="Rechercher un utilisateur..."
+                  className="w-full pl-9 pr-4 py-2.5 bg-white border border-[#E8E8E8] rounded-xl text-xs font-semibold text-[#18181B] placeholder-[#A1A1AA] focus:outline-none focus:border-[#FF5330]" />
+              </div>
+              <select value={userFilter} onChange={(e) => setUserFilter(e.target.value as 'all' | 'actif' | 'inactif')}
+                className="py-2.5 px-3 bg-white border border-[#E8E8E8] rounded-xl text-xs font-semibold text-[#18181B] focus:outline-none focus:border-[#FF5330] cursor-pointer">
+                <option value="all">Tous</option>
+                <option value="actif">Actifs</option>
+                <option value="inactif">Inactifs</option>
+              </select>
+            </div>
+
+            {/* Liste utilisateurs */}
+            <div className="rounded-xl bg-white border border-[#E8E8E8] divide-y divide-[#F0F0F0] overflow-hidden">
+              {filteredUsers.length === 0
+                ? <div className="p-8 text-center text-xs text-[#6F6F73]">Aucun utilisateur trouvé.</div>
+                : filteredUsers.map((u) => (
+                    <div key={u.id}
+                      onClick={() => setSelectedUser(selectedUser?.id === u.id ? null : u)}
+                      className={`px-3.5 py-3 flex items-center justify-between gap-3 cursor-pointer transition-colors ${selectedUser?.id === u.id ? 'bg-[#FF5330]/5' : 'hover:bg-[#FAFAFA]'}`}>
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-8 h-8 rounded-full bg-[#18181B] flex items-center justify-center text-white text-[10px] font-black flex-shrink-0">
+                          {u.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-[#18181B] truncate">{u.name}</p>
+                          <p className="text-[10px] text-[#A1A1AA] truncate">{u.email} · {u.lastLogin}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <div className="hidden sm:block text-right">
+                          <p className="text-[10px] font-black text-[#10B981] num-tabular">+{formatCurrency(u.income)}</p>
+                          <p className="text-[10px] text-[#EF4444] num-tabular">-{formatCurrency(u.expenses)}</p>
+                        </div>
+                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${u.status === 'actif' ? 'bg-[#10B981]/10 text-[#10B981]' : 'bg-[#F97316]/10 text-[#F97316]'}`}>
+                          {u.status}
+                        </span>
+                        <ChevronDown className={`w-3.5 h-3.5 text-[#A1A1AA] transition-transform ${selectedUser?.id === u.id ? 'rotate-180' : ''}`} />
+                      </div>
+                    </div>
+                  ))
+              }
+            </div>
+          </div>
+        );
+
+      // ── CATÉGORIES ───────────────────────────────────────────────────────
+      case 'categories':
+        return (
+          <div className="space-y-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-black text-[#18181B] tracking-tight">Catégories</h2>
+                <p className="text-xs text-[#6F6F73] mt-0.5">{categories.length} catégories · gestion globale</p>
+              </div>
+            </div>
+
+            {/* Stats catégories */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="p-3.5 rounded-xl bg-white border border-[#E8E8E8] shadow-2xs">
+                <p className="text-[11px] text-[#6F6F73]">Catégories dépenses</p>
+                <p className="text-2xl font-black text-[#18181B] num-tabular mt-0.5">{categories.filter(c => c.type === 'expense').length}</p>
+                <p className="text-[10px] text-[#A1A1AA] mt-0.5">Budget total alloué</p>
+                <p className="text-xs font-bold text-[#FF5330] num-tabular">{formatCurrency(categories.filter(c => c.type === 'expense').reduce((s, c) => s + c.budgetLimit, 0))}</p>
+              </div>
+              <div className="p-3.5 rounded-xl bg-white border border-[#E8E8E8] shadow-2xs">
+                <p className="text-[11px] text-[#6F6F73]">Catégories revenus</p>
+                <p className="text-2xl font-black text-[#18181B] num-tabular mt-0.5">{categories.filter(c => c.type === 'income').length}</p>
+                <p className="text-[10px] text-[#A1A1AA] mt-0.5">Sources de revenu actives</p>
+                <p className="text-xs font-bold text-[#10B981] num-tabular">{categories.filter(c => c.type === 'income').length} sources</p>
+              </div>
+            </div>
+
+            {/* Utilisation des catégories de dépense */}
+            <div className="space-y-2">
+              <h3 className="font-extrabold text-sm text-[#18181B] px-1">Utilisation — catégories dépenses</h3>
+              <div className="rounded-xl bg-white border border-[#E8E8E8] divide-y divide-[#F0F0F0] overflow-hidden">
+                {categories.filter(c => c.type === 'expense').map((cat) => {
+                  const spent = transactions.filter((t) => (t.categoryId === cat.id || t.category === cat.name) && t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+                  const pct = cat.budgetLimit > 0 ? Math.min(100, Math.round((spent / cat.budgetLimit) * 100)) : 0;
+                  const over = spent > cat.budgetLimit && cat.budgetLimit > 0;
+                  // Compter les utilisateurs simulés qui ont cette catégorie (estimation)
+                  const usersCount = Math.floor(Math.random() * 4) + 3;
+                  return (
+                    <div key={cat.id} className="px-3.5 py-3 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-7 h-7 rounded-lg bg-[#F7F7F7] flex items-center justify-center">
+                            <CategoryIcon name={cat.icon || cat.name} className="w-3.5 h-3.5 text-[#52525B]" />
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-[#18181B]">{cat.name}</p>
+                            <p className="text-[10px] text-[#A1A1AA]">Utilisée par {usersCount} utilisateurs</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className={`text-xs font-black num-tabular ${over ? 'text-[#EF4444]' : 'text-[#18181B]'}`}>{pct}%</span>
+                          {over && <span className="block text-[9px] text-[#EF4444] font-bold">Dépassé</span>}
+                        </div>
+                      </div>
+                      <div className="w-full h-1.5 bg-[#F0F0F0] rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full ${over ? 'bg-[#EF4444]' : pct > 80 ? 'bg-[#F97316]' : 'bg-[#FF5330]'}`} style={{ width: `${pct}%` }} />
+                      </div>
+                      <div className="flex items-center justify-between text-[10px] text-[#A1A1AA] num-tabular">
+                        <span>{formatCurrency(spent)} dépensés</span>
+                        <span>Plafond : {formatCurrency(cat.budgetLimit)}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Catégories revenus */}
+            <div className="space-y-2">
+              <h3 className="font-extrabold text-sm text-[#18181B] px-1">Catégories revenus</h3>
+              <div className="rounded-xl bg-white border border-[#E8E8E8] divide-y divide-[#F0F0F0] overflow-hidden">
+                {categories.filter(c => c.type === 'income').map((cat) => {
+                  const earned = transactions.filter((t) => (t.categoryId === cat.id || t.category === cat.name) && t.type === 'income').reduce((s, t) => s + t.amount, 0);
+                  return (
+                    <div key={cat.id} className="px-3.5 py-2.5 flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-7 h-7 rounded-lg bg-[#10B981]/10 flex items-center justify-center">
+                          <CategoryIcon name={cat.icon || cat.name} className="w-3.5 h-3.5 text-[#10B981]" />
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-[#18181B]">{cat.name}</p>
+                          <p className="text-[10px] text-[#A1A1AA]">Source de revenu</p>
+                        </div>
+                      </div>
+                      <p className="text-xs font-black text-[#10B981] num-tabular">{earned > 0 ? `+${formatCurrency(earned)}` : '—'}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        );
+
+      // ── FINANCES GLOBALES ─────────────────────────────────────────────────
+      case 'finances':
+        return (
+          <div className="space-y-5">
+            <div>
+              <h2 className="text-xl font-black text-[#18181B] tracking-tight">Finances globales</h2>
+              <p className="text-xs text-[#6F6F73] mt-0.5">Revenus, dépenses et épargne — agrégat plateforme</p>
+            </div>
+
+            {/* Agrégat global */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {[
+                { label: 'Revenus totaux', value: globalStats.globalIncome, icon: TrendingUp, color: 'text-[#10B981]', bg: 'bg-[#10B981]/10', prefix: '+' },
+                { label: 'Dépenses totales', value: globalStats.globalExpenses, icon: TrendingDown, color: 'text-[#EF4444]', bg: 'bg-[#EF4444]/10', prefix: '-' },
+                { label: 'Épargne totale', value: globalStats.globalSavings, icon: PiggyBank, color: 'text-[#FF5330]', bg: 'bg-[#FF5330]/10', prefix: '' },
+              ].map((kpi) => {
+                const Icon = kpi.icon;
+                return (
+                  <div key={kpi.label} className="p-4 rounded-xl bg-white border border-[#E8E8E8] shadow-2xs space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-[#6F6F73]">{kpi.label}</span>
+                      <div className={`w-8 h-8 rounded-lg ${kpi.bg} flex items-center justify-center`}>
+                        <Icon className={`w-4 h-4 ${kpi.color}`} />
+                      </div>
+                    </div>
+                    <p className={`text-lg font-black num-tabular ${kpi.color}`}>{kpi.prefix}{formatCurrency(kpi.value)}</p>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Tableau par utilisateur */}
+            <div className="space-y-2">
+              <h3 className="font-extrabold text-sm text-[#18181B] px-1">Détail par utilisateur</h3>
+              <div className="rounded-xl bg-white border border-[#E8E8E8] overflow-hidden">
+                {/* Header tableau */}
+                <div className="grid grid-cols-12 gap-2 px-3.5 py-2 bg-[#F7F7F7] border-b border-[#E8E8E8]">
+                  <div className="col-span-4"><p className="text-[10px] font-bold text-[#6F6F73] uppercase tracking-wider">Utilisateur</p></div>
+                  <div className="col-span-2 text-right"><p className="text-[10px] font-bold text-[#6F6F73] uppercase tracking-wider">Revenus</p></div>
+                  <div className="col-span-2 text-right"><p className="text-[10px] font-bold text-[#6F6F73] uppercase tracking-wider">Dépenses</p></div>
+                  <div className="col-span-2 text-right"><p className="text-[10px] font-bold text-[#6F6F73] uppercase tracking-wider">Épargne</p></div>
+                  <div className="col-span-2 text-right"><p className="text-[10px] font-bold text-[#6F6F73] uppercase tracking-wider">Budget</p></div>
+                </div>
+                {/* Lignes */}
+                <div className="divide-y divide-[#F0F0F0]">
+                  {ALL_USERS.map((u) => (
+                    <div key={u.id} className="grid grid-cols-12 gap-2 px-3.5 py-2.5 items-center cursor-pointer" onClick={() => { setSelectedUser(u); setActiveSection('users'); }}>
+                      <div className="col-span-4 flex items-center gap-2 min-w-0">
+                        <div className="w-6 h-6 rounded-full bg-[#18181B] flex items-center justify-center text-white text-[9px] font-black flex-shrink-0">
+                          {u.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[11px] font-bold text-[#18181B] truncate">{u.name}</p>
+                          <span className={`text-[9px] font-bold ${u.status === 'actif' ? 'text-[#10B981]' : 'text-[#F97316]'}`}>{u.status}</span>
+                        </div>
+                      </div>
+                      <div className="col-span-2 text-right"><p className="text-[11px] font-bold text-[#10B981] num-tabular">{formatCurrency(u.income)}</p></div>
+                      <div className="col-span-2 text-right"><p className="text-[11px] font-bold text-[#EF4444] num-tabular">{formatCurrency(u.expenses)}</p></div>
+                      <div className="col-span-2 text-right"><p className="text-[11px] font-bold text-[#FF5330] num-tabular">{formatCurrency(u.savings)}</p></div>
+                      <div className="col-span-2 text-right">
+                        <p className="text-[11px] font-bold text-[#18181B] num-tabular">{u.budgetTotal > 0 ? `${Math.min(100, Math.round((u.expenses / u.budgetTotal) * 100))}%` : '—'}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {/* Totaux */}
+                <div className="grid grid-cols-12 gap-2 px-3.5 py-2.5 bg-[#F7F7F7] border-t border-[#E8E8E8]">
+                  <div className="col-span-4"><p className="text-[11px] font-black text-[#18181B]">Total plateforme</p></div>
+                  <div className="col-span-2 text-right"><p className="text-[11px] font-black text-[#10B981] num-tabular">{formatCurrency(globalStats.globalIncome)}</p></div>
+                  <div className="col-span-2 text-right"><p className="text-[11px] font-black text-[#EF4444] num-tabular">{formatCurrency(globalStats.globalExpenses)}</p></div>
+                  <div className="col-span-2 text-right"><p className="text-[11px] font-black text-[#FF5330] num-tabular">{formatCurrency(globalStats.globalSavings)}</p></div>
+                  <div className="col-span-2" />
+                </div>
+              </div>
+            </div>
+
+            {/* Objectifs d'épargne réels */}
+            <div className="space-y-2">
+              <h3 className="font-extrabold text-sm text-[#18181B] px-1">Objectifs d'épargne — utilisateur actif</h3>
+              <div className="rounded-xl bg-white border border-[#E8E8E8] divide-y divide-[#F0F0F0] overflow-hidden">
+                {savingsGoals.map((goal) => {
+                  const pct = Math.min(100, Math.round((goal.currentAmount / goal.targetAmount) * 100));
+                  const done = goal.currentAmount >= goal.targetAmount;
+                  return (
+                    <div key={goal.id} className="px-3.5 py-2.5 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <PiggyBank className="w-3.5 h-3.5 text-[#FF5330]" />
+                          <span className="text-xs font-bold text-[#18181B]">{goal.title}</span>
+                          {done && <CheckCircle2 className="w-3.5 h-3.5 text-[#10B981]" />}
+                        </div>
+                        <span className="text-xs font-black text-[#FF5330] num-tabular">{pct}%</span>
+                      </div>
+                      <div className="w-full h-1.5 bg-[#F0F0F0] rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full ${done ? 'bg-[#10B981]' : 'bg-[#FF5330]'}`} style={{ width: `${pct}%` }} />
+                      </div>
+                      <div className="flex justify-between text-[10px] text-[#A1A1AA] num-tabular">
+                        <span>{formatCurrency(goal.currentAmount)}</span>
+                        <span>/ {formatCurrency(goal.targetAmount)}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        );
+
+      // ── JOURNAUX ─────────────────────────────────────────────────────────
+      case 'logs':
+        return (
+          <div className="space-y-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-black text-[#18181B] tracking-tight">Journaux d'activité</h2>
+                <p className="text-xs text-[#6F6F73] mt-0.5">Actions récentes sur la plateforme</p>
+              </div>
+              <button onClick={exportDataJSON} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#F7F7F7] border border-[#E8E8E8] text-xs font-bold text-[#52525B] cursor-pointer">
+                <Download className="w-3.5 h-3.5" /> Exporter
+              </button>
+            </div>
+
+            <div className="rounded-xl bg-white border border-[#E8E8E8] divide-y divide-[#F0F0F0] overflow-hidden">
+              {/* Logs réels basés sur les vraies transactions */}
+              {transactions.slice(0, 6).map((t, i) => (
+                <div key={`tx-${i}`} className="px-3.5 py-2.5 flex items-start gap-3">
+                  <div className={`w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 mt-0.5 ${t.type === 'income' ? 'bg-[#10B981]/10 text-[#10B981]' : 'bg-[#FF5330]/10 text-[#FF5330]'}`}>
+                    <Activity className="w-3 h-3" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-bold text-[#18181B]">{t.type === 'income' ? 'Revenu enregistré' : t.type === 'expense' ? 'Dépense enregistrée' : 'Épargne déposée'}</p>
+                    <p className="text-[10px] text-[#6F6F73] truncate">{userProfile.name} · {t.title} · {formatCurrency(t.amount)}</p>
+                  </div>
+                  <span className="text-[10px] text-[#A1A1AA] flex-shrink-0">{t.date}</span>
+                </div>
+              ))}
+              {/* Logs simulés pour les autres utilisateurs */}
+              {SIMULATED_USERS.slice(0, 6).map((u, i) => (
+                <div key={`user-${i}`} className="px-3.5 py-2.5 flex items-start gap-3">
+                  <div className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 mt-0.5 bg-[#3B82F6]/10 text-[#3B82F6]">
+                    <Users className="w-3 h-3" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-bold text-[#18181B]">Connexion utilisateur</p>
+                    <p className="text-[10px] text-[#6F6F73] truncate">{u.name} · {u.email} · {u.status}</p>
+                  </div>
+                  <span className="text-[10px] text-[#A1A1AA] flex-shrink-0">{u.lastLogin}</span>
+                </div>
+              ))}
+              <div className="px-3.5 py-2.5 flex items-start gap-3">
+                <div className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 mt-0.5 bg-[#FF5330]/10 text-[#FF5330]">
+                  <Shield className="w-3 h-3" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-bold text-[#18181B]">Connexion admin</p>
+                  <p className="text-[10px] text-[#6F6F73]">Accès espace administrateur validé</p>
+                </div>
+                <span className="text-[10px] text-[#A1A1AA] flex-shrink-0">Aujourd'hui</span>
+              </div>
+            </div>
+          </div>
+        );
+
+      // ── PARAMÈTRES DU SITE ─────────────────────────────────────────────────
+      case 'site-settings':
+        return (
+          <div className="space-y-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-black text-[#18181B] tracking-tight">Paramètres du site</h2>
+                <p className="text-xs text-[#6F6F73] mt-0.5">Informations et configuration de la plateforme</p>
+              </div>
+              <button onClick={handleSaveSettings}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#FF5330] text-white text-xs font-bold cursor-pointer transition-all active:scale-95">
+                <Save className="w-3.5 h-3.5" />
+                {settingsSaved ? 'Sauvegardé ✓' : 'Sauvegarder'}
+              </button>
+            </div>
+
+            {/* Informations du site */}
+            <div className="space-y-2">
+              <h3 className="font-extrabold text-xs text-[#6F6F73] uppercase tracking-wider px-1">Identité du site</h3>
+              <div className="space-y-3 bg-white border border-[#E8E8E8] rounded-xl p-4">
+                <div>
+                  <label className="text-[11px] font-bold text-[#18181B] block mb-1.5">Nom du site</label>
+                  <input type="text" value={siteSettingsDraft.siteName}
+                    onChange={(e) => setSiteSettingsDraft(p => ({ ...p, siteName: e.target.value }))}
+                    className="w-full px-3 py-2.5 bg-[#F7F7F7] border border-[#E8E8E8] rounded-xl text-sm font-semibold text-[#18181B] focus:outline-none focus:border-[#FF5330]" />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-[#18181B] block mb-1.5">Slogan / Description courte</label>
+                  <input type="text" value={siteSettingsDraft.tagline}
+                    onChange={(e) => setSiteSettingsDraft(p => ({ ...p, tagline: e.target.value }))}
+                    className="w-full px-3 py-2.5 bg-[#F7F7F7] border border-[#E8E8E8] rounded-xl text-sm font-semibold text-[#18181B] focus:outline-none focus:border-[#FF5330]" />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-[#18181B] block mb-1.5">Email de support</label>
+                  <input type="email" value={siteSettingsDraft.supportEmail}
+                    onChange={(e) => setSiteSettingsDraft(p => ({ ...p, supportEmail: e.target.value }))}
+                    className="w-full px-3 py-2.5 bg-[#F7F7F7] border border-[#E8E8E8] rounded-xl text-sm font-semibold text-[#18181B] focus:outline-none focus:border-[#FF5330]" />
+                </div>
+              </div>
+            </div>
+
+            {/* Annonce */}
+            <div className="space-y-2">
+              <h3 className="font-extrabold text-xs text-[#6F6F73] uppercase tracking-wider px-1">Annonce globale</h3>
+              <div className="bg-white border border-[#E8E8E8] rounded-xl p-4">
+                <label className="text-[11px] font-bold text-[#18181B] block mb-1.5">Bannière d'annonce (laissez vide pour désactiver)</label>
+                <textarea value={siteSettingsDraft.announcement}
+                  onChange={(e) => setSiteSettingsDraft(p => ({ ...p, announcement: e.target.value }))}
+                  rows={3}
+                  placeholder="Ex: Maintenance programmée le 15 octobre de 02h à 04h..."
+                  className="w-full px-3 py-2.5 bg-[#F7F7F7] border border-[#E8E8E8] rounded-xl text-sm text-[#18181B] focus:outline-none focus:border-[#FF5330] resize-none" />
+                {siteSettingsDraft.announcement && (
+                  <div className="mt-2 p-2 rounded-lg bg-[#FF5330]/5 border border-[#FF5330]/15">
+                    <p className="text-[10px] font-bold text-[#FF5330] mb-0.5">Aperçu</p>
+                    <p className="text-xs text-[#6F6F73]">{siteSettingsDraft.announcement}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Paramètres de fonctionnement */}
+            <div className="space-y-2">
+              <h3 className="font-extrabold text-xs text-[#6F6F73] uppercase tracking-wider px-1">Fonctionnement</h3>
+              <div className="bg-white border border-[#E8E8E8] rounded-xl divide-y divide-[#F0F0F0] overflow-hidden">
+                {/* Mode maintenance */}
+                <div className="flex items-center justify-between px-4 py-3">
+                  <div>
+                    <p className="text-xs font-bold text-[#18181B]">Mode maintenance</p>
+                    <p className="text-[10px] text-[#A1A1AA]">Rend le site inaccessible aux utilisateurs</p>
+                  </div>
+                  <button
+                    onClick={() => setSiteSettingsDraft(p => ({ ...p, maintenanceMode: !p.maintenanceMode }))}
+                    className={`relative w-10 h-5.5 rounded-full transition-colors cursor-pointer flex-shrink-0 ${siteSettingsDraft.maintenanceMode ? 'bg-[#EF4444]' : 'bg-[#E8E8E8]'}`}
+                    style={{ height: '22px', width: '40px' }}
+                  >
+                    <span className={`absolute top-0.5 w-4.5 h-4.5 rounded-full bg-white shadow-sm transition-transform ${siteSettingsDraft.maintenanceMode ? 'translate-x-5' : 'translate-x-0.5'}`}
+                      style={{ width: '18px', height: '18px', transform: siteSettingsDraft.maintenanceMode ? 'translateX(20px)' : 'translateX(2px)' }} />
+                  </button>
+                </div>
+                {/* Inscriptions */}
+                <div className="flex items-center justify-between px-4 py-3">
+                  <div>
+                    <p className="text-xs font-bold text-[#18181B]">Autoriser les inscriptions</p>
+                    <p className="text-[10px] text-[#A1A1AA]">Permet aux nouveaux utilisateurs de s'inscrire</p>
+                  </div>
+                  <button
+                    onClick={() => setSiteSettingsDraft(p => ({ ...p, allowRegistrations: !p.allowRegistrations }))}
+                    className={`relative rounded-full transition-colors cursor-pointer flex-shrink-0 ${siteSettingsDraft.allowRegistrations ? 'bg-[#10B981]' : 'bg-[#E8E8E8]'}`}
+                    style={{ height: '22px', width: '40px' }}
+                  >
+                    <span className={`absolute top-0.5 rounded-full bg-white shadow-sm transition-transform`}
+                      style={{ width: '18px', height: '18px', transform: siteSettingsDraft.allowRegistrations ? 'translateX(20px)' : 'translateX(2px)' }} />
+                  </button>
+                </div>
+                {/* Plan par défaut */}
+                <div className="flex items-center justify-between px-4 py-3">
+                  <div>
+                    <p className="text-xs font-bold text-[#18181B]">Plan par défaut</p>
+                    <p className="text-[10px] text-[#A1A1AA]">Plan assigné aux nouveaux utilisateurs</p>
+                  </div>
+                  <select value={siteSettingsDraft.defaultPlan}
+                    onChange={(e) => setSiteSettingsDraft(p => ({ ...p, defaultPlan: e.target.value }))}
+                    className="px-2.5 py-1.5 bg-[#F7F7F7] border border-[#E8E8E8] rounded-lg text-xs font-semibold text-[#18181B] focus:outline-none focus:border-[#FF5330] cursor-pointer">
+                    <option value="Standard">Standard</option>
+                    <option value="WealthFlow Pro">WealthFlow Pro</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Infos techniques */}
+            <div className="p-3 rounded-xl bg-[#F7F7F7] border border-[#E8E8E8]">
+              <p className="text-[10px] font-bold text-[#6F6F73] uppercase tracking-wider mb-2">Infos plateforme</p>
+              {[
+                { label: 'Version', value: 'WealthFlow V2' },
+                { label: 'Stockage', value: 'LocalStorage (local)' },
+                { label: 'Utilisateurs', value: `${globalStats.totalUsers} comptes` },
+                { label: 'Transactions', value: `${globalStats.globalTransactions} au total` },
+              ].map((row) => (
+                <div key={row.label} className="flex items-center justify-between py-1">
+                  <span className="text-[11px] text-[#A1A1AA]">{row.label}</span>
+                  <span className="text-[11px] font-bold text-[#18181B]">{row.value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+
+      default:
+        return null;
+    }
+  };
+
+  // ─── Shell ──────────────────────────────────────────────────────────────────
+  return (
+    <div className="min-h-screen bg-[#F7F7F7] flex flex-col lg:flex-row">
+
+      {/* Sidebar desktop */}
+      <aside className="hidden lg:flex flex-col w-60 xl:w-64 bg-white border-r border-[#E8E8E8] h-screen sticky top-0 px-3 py-4 z-30 select-none overflow-y-auto flex-shrink-0">
+        <div className="px-1 mb-3 cursor-pointer" onClick={() => setActiveTab('dashboard')}>
+          <BrandLogo size="md" showBadge={false} withDarkContainer={false} />
+        </div>
+        <div className="px-2 mb-4">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#FF5330]/10 text-[#FF5330] text-[11px] font-black">
+            <Shield className="w-3 h-3" /> ESPACE ADMIN
+          </span>
+        </div>
+        <nav className="flex-1 space-y-0.5">
+          {ADMIN_NAV.map((item) => {
+            const Icon = item.icon;
+            const isActive = activeSection === item.id;
+            return (
+              <button key={item.id} onClick={() => setActiveSection(item.id)}
+                className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${isActive ? 'bg-[#FF5330]/10 text-[#FF5330]' : 'text-[#52525B] hover:bg-[#F7F7F7]'}`}>
+                <Icon className={`w-3.5 h-3.5 flex-shrink-0 ${isActive ? 'text-[#FF5330]' : 'text-[#71717A]'}`} />
+                <span>{item.label}</span>
+              </button>
+            );
+          })}
+        </nav>
+        <div className="pt-3 border-t border-[#E8E8E8] space-y-0.5">
+          <button onClick={() => setActiveTab('dashboard')} className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-semibold text-[#52525B] transition-colors cursor-pointer">
+            <Globe className="w-3.5 h-3.5 text-[#71717A]" /><span>Voir le site</span>
+          </button>
+          <button onClick={handleAdminLogout} className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-semibold text-[#EF4444] transition-colors cursor-pointer">
+            <LogOut className="w-3.5 h-3.5" /><span>Quitter l'admin</span>
+          </button>
+        </div>
+      </aside>
+
+      {/* Contenu principal */}
+      <div className="flex-1 flex flex-col min-w-0">
+
+        {/* Header mobile */}
+        <header className="lg:hidden sticky top-0 z-20 bg-white border-b border-[#E8E8E8] px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <button onClick={() => setIsMobileNavOpen(true)} className="w-8 h-8 rounded-lg bg-[#F7F7F7] flex items-center justify-center text-[#52525B] cursor-pointer">
+              <MoreHorizontal className="w-4 h-4" />
+            </button>
+            <BrandLogo size="sm" showBadge={false} withDarkContainer={false} />
+          </div>
+          <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-[#FF5330]/10 text-[#FF5330]">ADMIN</span>
+        </header>
+
+        {/* Drawer mobile */}
+        {isMobileNavOpen && (
+          <div className="fixed inset-0 z-50 lg:hidden">
+            <div className="absolute inset-0 bg-black/40" onClick={() => setIsMobileNavOpen(false)} />
+            <div className="absolute left-0 top-0 bottom-0 w-64 bg-white shadow-2xl flex flex-col p-4 animate-in slide-in-from-left duration-200">
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-sm font-black text-[#FF5330]">Menu Admin</span>
+                <button onClick={() => setIsMobileNavOpen(false)} className="w-7 h-7 rounded-full bg-[#F7F7F7] flex items-center justify-center cursor-pointer">
+                  <X className="w-3.5 h-3.5 text-[#52525B]" />
+                </button>
+              </div>
+              <nav className="flex-1 space-y-0.5 overflow-y-auto">
+                {ADMIN_NAV.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = activeSection === item.id;
+                  return (
+                    <button key={item.id} onClick={() => { setActiveSection(item.id); setIsMobileNavOpen(false); }}
+                      className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-semibold transition-all cursor-pointer ${isActive ? 'bg-[#FF5330]/10 text-[#FF5330]' : 'text-[#52525B] hover:bg-[#F7F7F7]'}`}>
+                      <Icon className={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-[#FF5330]' : 'text-[#71717A]'}`} />
+                      <span>{item.label}</span>
+                    </button>
+                  );
+                })}
+              </nav>
+              <div className="pt-3 border-t border-[#E8E8E8] space-y-1">
+                <button onClick={() => { setActiveTab('dashboard'); setIsMobileNavOpen(false); }} className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-semibold text-[#52525B] cursor-pointer">
+                  <Globe className="w-4 h-4 text-[#71717A]" /> Voir le site
+                </button>
+                <button onClick={handleAdminLogout} className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-semibold text-[#EF4444] cursor-pointer">
+                  <LogOut className="w-4 h-4" /> Quitter l'admin
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Header desktop */}
+        <header className="hidden lg:flex sticky top-0 z-20 bg-white border-b border-[#E8E8E8] px-6 py-3 items-center justify-between">
+          <div>
+            <h1 className="text-sm font-black text-[#18181B]">
+              {ADMIN_NAV.find((n) => n.id === activeSection)?.label ?? 'Administration'}
+            </h1>
+            <p className="text-[10px] text-[#A1A1AA]">WealthFlow · Espace administrateur</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <button onClick={() => setActiveTab('dashboard')} className="text-xs font-bold text-[#6F6F73] flex items-center gap-1 transition-colors cursor-pointer">
+              <Globe className="w-3.5 h-3.5" /> Voir le site
+            </button>
+            <button onClick={handleAdminLogout} className="text-xs font-bold text-[#EF4444] flex items-center gap-1 transition-colors cursor-pointer">
+              <LogOut className="w-3.5 h-3.5" /> Quitter
+            </button>
+          </div>
+        </header>
+
+        <main className="flex-1 p-4 sm:p-6 max-w-5xl w-full mx-auto pb-24 lg:pb-12">
+          {renderSection()}
+        </main>
+      </div>
+    </div>
+  );
+};

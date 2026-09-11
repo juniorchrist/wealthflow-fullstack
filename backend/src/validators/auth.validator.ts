@@ -5,11 +5,11 @@ import { z } from 'zod';
  */
 export const registerSchema = z.object({
   body: z.object({
-    firstName: z
+    prenom: z
       .string()
       .min(2, 'Le prénom doit contenir au moins 2 caractères')
       .max(50, 'Le prénom ne peut pas dépasser 50 caractères'),
-    lastName: z
+    nom: z
       .string()
       .min(2, 'Le nom doit contenir au moins 2 caractères')
       .max(50, 'Le nom ne peut pas dépasser 50 caractères'),
@@ -21,7 +21,7 @@ export const registerSchema = z.object({
       .string()
       .min(6, 'Le mot de passe doit contenir au moins 6 caractères')
       .max(100, 'Le mot de passe ne peut pas dépasser 100 caractères'),
-    phone: z
+    numero: z
       .string()
       .optional(),
     currency: z

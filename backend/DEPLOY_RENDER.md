@@ -48,7 +48,7 @@ Ajoutez ces variables dans **"Environment"** :
 | `DATABASE_URL` | Votre URL Supabase complète |
 | `JWT_SECRET` | Générez un secret fort (32+ caractères) |
 | `JWT_REFRESH_SECRET` | Générez un autre secret fort |
-| `FRONTEND_URL` | URL de votre frontend Netlify |
+| `FRONTEND_URL` | `https://fluffy-panda-d9b796.netlify.app` |
 | `JWT_EXPIRES_IN` | `15m` |
 | `JWT_REFRESH_EXPIRES_IN` | `7d` |
 | `BCRYPT_ROUNDS` | `10` |
@@ -69,7 +69,7 @@ Dans **"Health Check Path"**, entrez : `/health`
 
 ### 5. Déploiement
 
-1. Cliquez sur **"Create Web Service"**
+1. Cliquez sur **"Create Web Service"** (ou **"Manual Deploy"** → **"Clear build cache & deploy"**)
 2. Render va automatiquement :
    - Cloner le repo
    - Installer les dépendances
@@ -80,14 +80,14 @@ Dans **"Health Check Path"**, entrez : `/health`
 
 ### 6. Vérification
 
-Une fois déployé, vous aurez une URL du type :
+Votre backend Render est accessible sur :
 ```
-https://wealthflow-backend.onrender.com
+https://wealthflow-fullstack-2.onrender.com
 ```
 
 Testez :
 ```bash
-curl https://wealthflow-backend.onrender.com/health
+curl https://wealthflow-fullstack-2.onrender.com/health
 ```
 
 Réponse attendue :
@@ -107,10 +107,10 @@ Réponse attendue :
 ### 1. Mettre à jour les variables d'environnement Netlify
 
 1. Allez sur https://app.netlify.com
-2. Sélectionnez votre site WealthFlow
-3. **Site settings** → **Environment variables**
+2. Sélectionnez votre site **fluffy-panda-d9b796**
+3. **Site configuration** → **Environment variables**
 4. Ajoutez/modifiez :
-   - `VITE_API_URL` = `https://wealthflow-backend.onrender.com/api`
+   - `VITE_API_URL` = `https://wealthflow-fullstack-2.onrender.com/api`
 
 ### 2. Redéployer le frontend
 

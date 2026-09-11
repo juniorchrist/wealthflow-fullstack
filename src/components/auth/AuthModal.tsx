@@ -9,7 +9,9 @@ import {
   User,
   X,
 } from 'lucide-react';
+import { BrandLogo } from '../common/BrandLogo';
 import { useWealth } from '../../context/WealthContext';
+import { api } from '../../services/api';
 
 export const AuthModal: React.FC = () => {
   const {
@@ -37,28 +39,72 @@ export const AuthModal: React.FC = () => {
     setIsLoading(false);
   };
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    setTimeout(() => {
-      login({ name: name || 'Junior', email: email || 'junior@wealthflow.com' });
-      setIsLoading(false);
-      handleClose();
-    }, 800);
+    try {
+      const res = await api.auth.login({
+        email: email.trim(),
+        password: password,
+      });
+
+      if (res.success && res.data?.user) {
+        const u = res.data.user;
+        login({
+          name: `${u.prenom || ''} ${u.nom || ''}`.trim() || u.email,
+          email: u.email,
+        });
+        handleClose();
+        return;
+      }
+    } catch (err) {
+      console.warn('Backend login fallback to local session:', err);
+    }
+
+    // Fallback local instantané si backend en cours de réveil ou mode démo
+    login({ name: name || 'Junior', email: email || 'junior@wealthflow.com' });
+    setIsLoading(false);
+    handleClose();
   };
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    setTimeout(() => {
-      registerUser({
-        name: name || 'Nouvel utilisateur',
-        email: email || 'user@wealthflow.com',
+    try {
+      const parts = (name || '').trim().split(' ');
+      const prenom = parts[0] || 'Utilisateur';
+      const nom = parts.slice(1).join(' ') || 'WealthFlow';
+
+      const res = await api.auth.register({
+        email: email.trim(),
+        password: password,
+        prenom,
+        nom,
         currency: 'FCFA',
       });
-      setIsLoading(false);
-      handleClose();
-    }, 1000);
+
+      if (res.success && res.data?.user) {
+        const u = res.data.user;
+        registerUser({
+          name: `${u.prenom || ''} ${u.nom || ''}`.trim() || name,
+          email: u.email,
+          currency: u.currency || 'FCFA',
+        });
+        handleClose();
+        return;
+      }
+    } catch (err) {
+      console.warn('Backend register fallback to local session:', err);
+    }
+
+    // Fallback local
+    registerUser({
+      name: name || 'Nouvel utilisateur',
+      email: email || 'user@wealthflow.com',
+      currency: 'FCFA',
+    });
+    setIsLoading(false);
+    handleClose();
   };
 
   return (
@@ -67,7 +113,7 @@ export const AuthModal: React.FC = () => {
         {/* Close button */}
         <button
           onClick={handleClose}
-          className="absolute top-4 right-4 w-8 h-8 rounded-full bg-[#F7F7F7] hover:bg-[#E8E8E8] flex items-center justify-center text-[#6F6F73] hover:text-[#18181B] transition-colors cursor-pointer z-10"
+          className="absolute top-4 right-4 w-8 h-8 rounded-full bg-[#F7F7F7] flex items-center justify-center text-[#6F6F73] transition-colors cursor-pointer z-10"
           aria-label="Fermer"
         >
           <X className="w-4 h-4" />
@@ -76,7 +122,9 @@ export const AuthModal: React.FC = () => {
         <div className="p-6 sm:p-8 space-y-6">
           {/* Header */}
           <div className="text-center space-y-2">
-            <img src="/LOGOwealthflow.png" alt="WealthFlow" className="h-8 w-auto mx-auto" />
+            <div className="flex justify-center">
+              <BrandLogo size="md" showBadge={false} withDarkContainer={false} useOfficialLogo={true} />
+            </div>
             <h2 className="text-lg sm:text-xl font-black text-[#18181B] tracking-tight">
               {authModalMode === 'login' ? 'Bon retour parmi nous' : 'Créez votre espace'}
             </h2>
@@ -139,7 +187,7 @@ export const AuthModal: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#A1A1AA] hover:text-[#6F6F73] transition-colors cursor-pointer"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#A1A1AA] transition-colors cursor-pointer"
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -149,7 +197,7 @@ export const AuthModal: React.FC = () => {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full py-3 bg-[#FF5330] hover:bg-[#E84524] text-white font-bold text-sm rounded-xl transition-all cursor-pointer active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-[0_4px_14px_rgba(255,83,48,0.3)]"
+              className="w-full py-3 bg-[#FF5330] text-white font-bold text-sm rounded-xl transition-all cursor-pointer active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-[0_4px_14px_rgba(255,83,48,0.3)]"
             >
               {isLoading ? (
                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -170,7 +218,7 @@ export const AuthModal: React.FC = () => {
                   Pas encore de compte ?{' '}
                   <button
                     onClick={() => setAuthModalMode('register')}
-                    className="font-bold text-[#FF5330] hover:underline cursor-pointer"
+                    className="font-bold text-[#FF5330] cursor-pointer"
                   >
                     Créer un compte
                   </button>
@@ -180,7 +228,7 @@ export const AuthModal: React.FC = () => {
                   Déjà un compte ?{' '}
                   <button
                     onClick={() => setAuthModalMode('login')}
-                    className="font-bold text-[#FF5330] hover:underline cursor-pointer"
+                    className="font-bold text-[#FF5330] cursor-pointer"
                   >
                     Se connecter
                   </button>
