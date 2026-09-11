@@ -21,7 +21,7 @@ export const globalLimiter = rateLimit({
  */
 export const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // 5 tentatives
+  max: 50, // 50 tentatives
   message: {
     success: false,
     message: 'Trop de tentatives de connexion, veuillez réessayer dans 15 minutes',

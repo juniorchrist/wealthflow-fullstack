@@ -11,6 +11,9 @@ import apiRoutes from './routes';
 
 const app: Application = express();
 
+// Configuration pour proxy reverse (Render, Fly.io, Heroku)
+app.set('trust proxy', 1);
+
 // ============================================================================
 // MIDDLEWARE DE SÉCURITÉ
 // ============================================================================
@@ -118,20 +121,25 @@ app.get('/health', (req, res) => {
 
 app.get('/api/health', async (req, res) => {
   try {
-    // Tester la connexion à la base de données
     const { prisma } = await import('./lib/prisma');
+    const { bootstrapDatabase } = await import('./lib/bootstrapDb');
+
+    // Tester la connexion et exécuter la synchronisation
     await prisma.$queryRaw`SELECT 1`;
+    const syncResult = await bootstrapDatabase();
 
     const columns: any = await prisma.$queryRaw`
       SELECT column_name 
       FROM information_schema.columns 
       WHERE table_name = 'User' OR table_name = 'user'
+      ORDER BY ordinal_position ASC
     `;
 
     const tables: any = await prisma.$queryRaw`
       SELECT table_name 
       FROM information_schema.tables 
       WHERE table_schema = 'public'
+      ORDER BY table_name ASC
     `;
 
     const maskedUrl = env.database.url.replace(/:\/\/([^:]+):([^@]+)@/, '://$1:****@');
@@ -139,8 +147,10 @@ app.get('/api/health', async (req, res) => {
     res.status(200).json({
       success: true,
       message: 'API et base de données opérationnelles',
+      version: '2.0.2-pin4',
       database: 'connected',
       dbUrl: maskedUrl,
+      sync: syncResult,
       tables: tables.map((t: any) => t.table_name),
       userColumns: columns.map((c: any) => c.column_name),
       timestamp: new Date().toISOString(),
@@ -152,6 +162,24 @@ app.get('/api/health', async (req, res) => {
       database: 'disconnected',
       error: error.message,
       timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+app.all('/api/sync-schema', async (req, res) => {
+  try {
+    const { bootstrapDatabase } = await import('./lib/bootstrapDb');
+    const syncResult = await bootstrapDatabase();
+    res.status(200).json({
+      success: true,
+      message: 'Synchronisation du schéma terminée',
+      syncResult,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la synchronisation',
+      error: error.message,
     });
   }
 });

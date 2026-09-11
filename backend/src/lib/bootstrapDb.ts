@@ -1,204 +1,223 @@
 import { prisma } from './prisma';
 import { logger } from '../utils/logger';
 
-export const bootstrapDatabase = async (): Promise<void> => {
+const runSafeSql = async (sql: string, description: string): Promise<boolean> => {
   try {
-    logger.info('🔄 Vérification et synchronisation du schéma de la base de données...');
+    await prisma.$executeRawUnsafe(sql);
+    return true;
+  } catch (err: any) {
+    logger.warn(`⚠️ [DB Bootstrap] ${description}: ${err.message}`);
+    return false;
+  }
+};
 
-    // 1. Ajouter les colonnes manquantes à la table User
-    await prisma.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS "User" (
-        "id" TEXT NOT NULL,
-        "email" TEXT NOT NULL,
-        "passwordHash" TEXT NOT NULL,
-        "nom" TEXT NOT NULL,
-        "prenom" TEXT NOT NULL,
-        "numero" TEXT,
-        "avatar" TEXT,
-        "currency" TEXT NOT NULL DEFAULT 'FCFA',
-        "language" TEXT NOT NULL DEFAULT 'Français',
-        "timezone" TEXT NOT NULL DEFAULT 'GMT +00:00',
-        "dateFormat" TEXT NOT NULL DEFAULT 'DD/MM/YYYY',
-        "plan" TEXT NOT NULL DEFAULT 'WealthFlow Pro',
-        "pinHash" TEXT,
-        "isPinEnabled" BOOLEAN NOT NULL DEFAULT false,
-        "autoLockMinutes" INTEGER NOT NULL DEFAULT 15,
-        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        CONSTRAINT "User_pkey" PRIMARY KEY ("id")
-      );
-    `);
+export const bootstrapDatabase = async (): Promise<{ success: boolean; applied: number; errors: number }> => {
+  logger.info('🔄 Démarrage du bootstrap/synchronisation du schéma...');
+  let applied = 0;
+  let errors = 0;
 
-    // S'assurer que les colonnes existent si la table User existait déjà
-    await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "nom" TEXT;`);
-    await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "prenom" TEXT;`);
-    await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "numero" TEXT;`);
-    await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "avatar" TEXT;`);
-    await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "currency" TEXT DEFAULT 'FCFA';`);
-    await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "language" TEXT DEFAULT 'Français';`);
-    await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "timezone" TEXT DEFAULT 'GMT +00:00';`);
-    await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "dateFormat" TEXT DEFAULT 'DD/MM/YYYY';`);
-    await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "plan" TEXT DEFAULT 'WealthFlow Pro';`);
-    await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "isPinEnabled" BOOLEAN DEFAULT false;`);
-    await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "autoLockMinutes" INTEGER DEFAULT 15;`);
+  const run = async (sql: string, desc: string) => {
+    const ok = await runSafeSql(sql, desc);
+    if (ok) applied++;
+    else errors++;
+  };
 
-    // 2. Table RefreshToken
-    await prisma.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS "RefreshToken" (
-        "id" TEXT NOT NULL,
-        "userId" TEXT NOT NULL,
-        "token" TEXT NOT NULL,
-        "expiresAt" TIMESTAMP(3) NOT NULL,
-        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        CONSTRAINT "RefreshToken_pkey" PRIMARY KEY ("id"),
-        CONSTRAINT "RefreshToken_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE
-      );
-    `);
-    await prisma.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "RefreshToken_token_key" ON "RefreshToken"("token");`);
-    await prisma.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "User_email_key" ON "User"("email");`);
+  // 1. Table User (base)
+  await run(`
+    CREATE TABLE IF NOT EXISTS "User" (
+      "id" TEXT NOT NULL,
+      "email" TEXT NOT NULL,
+      "passwordHash" TEXT NOT NULL,
+      "nom" TEXT NOT NULL,
+      "prenom" TEXT NOT NULL,
+      "numero" TEXT,
+      "avatar" TEXT,
+      "currency" TEXT NOT NULL DEFAULT 'FCFA',
+      "language" TEXT NOT NULL DEFAULT 'Français',
+      "timezone" TEXT NOT NULL DEFAULT 'GMT +00:00',
+      "dateFormat" TEXT NOT NULL DEFAULT 'DD/MM/YYYY',
+      "plan" TEXT NOT NULL DEFAULT 'WealthFlow Pro',
+      "pinHash" TEXT,
+      "isPinEnabled" BOOLEAN NOT NULL DEFAULT false,
+      "autoLockMinutes" INTEGER NOT NULL DEFAULT 15,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "User_pkey" PRIMARY KEY ("id")
+    );
+  `, 'Create table User if not exists');
 
-    // 3. Table Account
-    await prisma.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS "Account" (
-        "id" TEXT NOT NULL,
-        "userId" TEXT NOT NULL,
-        "name" TEXT NOT NULL,
-        "type" TEXT NOT NULL DEFAULT 'main',
-        "initialBalance" DOUBLE PRECISION NOT NULL DEFAULT 0,
-        "currency" TEXT NOT NULL DEFAULT 'FCFA',
-        "isDefault" BOOLEAN NOT NULL DEFAULT false,
-        "icon" TEXT,
-        "color" TEXT,
-        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        CONSTRAINT "Account_pkey" PRIMARY KEY ("id"),
-        CONSTRAINT "Account_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE
-      );
-    `);
+  // Ajouter les colonnes de User individuellement pour les bases existantes
+  await run(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "nom" TEXT DEFAULT '';`, 'Add column nom');
+  await run(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "prenom" TEXT DEFAULT '';`, 'Add column prenom');
+  await run(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "numero" TEXT;`, 'Add column numero');
+  await run(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "avatar" TEXT;`, 'Add column avatar');
+  await run(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "currency" TEXT DEFAULT 'FCFA';`, 'Add column currency');
+  await run(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "language" TEXT DEFAULT 'Français';`, 'Add column language');
+  await run(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "timezone" TEXT DEFAULT 'GMT +00:00';`, 'Add column timezone');
+  await run(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "dateFormat" TEXT DEFAULT 'DD/MM/YYYY';`, 'Add column dateFormat');
+  await run(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "plan" TEXT DEFAULT 'WealthFlow Pro';`, 'Add column plan');
+  await run(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "pinHash" TEXT;`, 'Add column pinHash');
+  await run(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "isPinEnabled" BOOLEAN DEFAULT false;`, 'Add column isPinEnabled');
+  await run(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "autoLockMinutes" INTEGER DEFAULT 15;`, 'Add column autoLockMinutes');
+  await run(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "createdAt" TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP;`, 'Add column createdAt');
+  await run(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP;`, 'Add column updatedAt');
+  await run(`CREATE UNIQUE INDEX IF NOT EXISTS "User_email_key" ON "User"("email");`, 'Index User email');
 
-    // 4. Table Category
-    await prisma.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS "Category" (
-        "id" TEXT NOT NULL,
-        "userId" TEXT,
-        "name" TEXT NOT NULL,
-        "icon" TEXT NOT NULL,
-        "color" TEXT NOT NULL,
-        "budgetLimit" DOUBLE PRECISION NOT NULL DEFAULT 0,
-        "type" TEXT NOT NULL,
-        "isDefault" BOOLEAN NOT NULL DEFAULT false,
-        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        CONSTRAINT "Category_pkey" PRIMARY KEY ("id"),
-        CONSTRAINT "Category_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE
-      );
-    `);
+  // 2. Table RefreshToken
+  await run(`
+    CREATE TABLE IF NOT EXISTS "RefreshToken" (
+      "id" TEXT NOT NULL,
+      "userId" TEXT NOT NULL,
+      "token" TEXT NOT NULL,
+      "expiresAt" TIMESTAMP(3) NOT NULL,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "RefreshToken_pkey" PRIMARY KEY ("id"),
+      CONSTRAINT "RefreshToken_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE
+    );
+  `, 'Create table RefreshToken');
+  await run(`CREATE UNIQUE INDEX IF NOT EXISTS "RefreshToken_token_key" ON "RefreshToken"("token");`, 'Index RefreshToken token');
 
-    // 5. Table Transaction
-    await prisma.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS "Transaction" (
-        "id" TEXT NOT NULL,
-        "userId" TEXT NOT NULL,
-        "accountId" TEXT,
-        "categoryId" TEXT NOT NULL,
-        "title" TEXT NOT NULL,
-        "amount" DOUBLE PRECISION NOT NULL,
-        "type" TEXT NOT NULL,
-        "date" TIMESTAMP(3) NOT NULL,
-        "time" TEXT,
-        "notes" TEXT,
-        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        CONSTRAINT "Transaction_pkey" PRIMARY KEY ("id"),
-        CONSTRAINT "Transaction_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE,
-        CONSTRAINT "Transaction_accountId_fkey" FOREIGN KEY ("accountId") REFERENCES "Account"("id") ON DELETE SET NULL ON UPDATE CASCADE,
-        CONSTRAINT "Transaction_categoryId_fkey" FOREIGN KEY ("categoryId") REFERENCES "Category"("id") ON DELETE RESTRICT ON UPDATE CASCADE
-      );
-    `);
+  // 3. Table Account
+  await run(`
+    CREATE TABLE IF NOT EXISTS "Account" (
+      "id" TEXT NOT NULL,
+      "userId" TEXT NOT NULL,
+      "name" TEXT NOT NULL,
+      "type" TEXT NOT NULL DEFAULT 'main',
+      "initialBalance" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "currency" TEXT NOT NULL DEFAULT 'FCFA',
+      "isDefault" BOOLEAN NOT NULL DEFAULT false,
+      "icon" TEXT,
+      "color" TEXT,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "Account_pkey" PRIMARY KEY ("id"),
+      CONSTRAINT "Account_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE
+    );
+  `, 'Create table Account');
 
-    // 6. Table SavingsGoal & SavingsDeposit
-    await prisma.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS "SavingsGoal" (
-        "id" TEXT NOT NULL,
-        "userId" TEXT NOT NULL,
-        "title" TEXT NOT NULL,
-        "targetAmount" DOUBLE PRECISION NOT NULL,
-        "deadline" TEXT NOT NULL,
-        "icon" TEXT NOT NULL,
-        "color" TEXT NOT NULL,
-        "description" TEXT,
-        "isAutoSaveActive" BOOLEAN NOT NULL DEFAULT false,
-        "autoSaveAmount" DOUBLE PRECISION,
-        "checkboxesCount" INTEGER NOT NULL DEFAULT 10,
-        "checkedBoxes" JSONB,
-        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        CONSTRAINT "SavingsGoal_pkey" PRIMARY KEY ("id"),
-        CONSTRAINT "SavingsGoal_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE
-      );
-    `);
+  // 4. Table Category
+  await run(`
+    CREATE TABLE IF NOT EXISTS "Category" (
+      "id" TEXT NOT NULL,
+      "userId" TEXT,
+      "name" TEXT NOT NULL,
+      "icon" TEXT NOT NULL,
+      "color" TEXT NOT NULL,
+      "budgetLimit" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "type" TEXT NOT NULL,
+      "isDefault" BOOLEAN NOT NULL DEFAULT false,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "Category_pkey" PRIMARY KEY ("id"),
+      CONSTRAINT "Category_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE
+    );
+  `, 'Create table Category');
 
-    await prisma.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS "SavingsDeposit" (
-        "id" TEXT NOT NULL,
-        "goalId" TEXT NOT NULL,
-        "transactionId" TEXT NOT NULL,
-        "amount" DOUBLE PRECISION NOT NULL,
-        "date" TIMESTAMP(3) NOT NULL,
-        "notes" TEXT,
-        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        CONSTRAINT "SavingsDeposit_pkey" PRIMARY KEY ("id"),
-        CONSTRAINT "SavingsDeposit_goalId_fkey" FOREIGN KEY ("goalId") REFERENCES "SavingsGoal"("id") ON DELETE CASCADE ON UPDATE CASCADE,
-        CONSTRAINT "SavingsDeposit_transactionId_fkey" FOREIGN KEY ("transactionId") REFERENCES "Transaction"("id") ON DELETE CASCADE ON UPDATE CASCADE
-      );
-    `);
+  // 5. Table Transaction
+  await run(`
+    CREATE TABLE IF NOT EXISTS "Transaction" (
+      "id" TEXT NOT NULL,
+      "userId" TEXT NOT NULL,
+      "accountId" TEXT,
+      "categoryId" TEXT NOT NULL,
+      "title" TEXT NOT NULL,
+      "amount" DOUBLE PRECISION NOT NULL,
+      "type" TEXT NOT NULL,
+      "date" TIMESTAMP(3) NOT NULL,
+      "time" TEXT,
+      "notes" TEXT,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "Transaction_pkey" PRIMARY KEY ("id"),
+      CONSTRAINT "Transaction_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE,
+      CONSTRAINT "Transaction_accountId_fkey" FOREIGN KEY ("accountId") REFERENCES "Account"("id") ON DELETE SET NULL ON UPDATE CASCADE,
+      CONSTRAINT "Transaction_categoryId_fkey" FOREIGN KEY ("categoryId") REFERENCES "Category"("id") ON DELETE RESTRICT ON UPDATE CASCADE
+    );
+  `, 'Create table Transaction');
 
-    // 7. Table Notification
-    await prisma.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS "Notification" (
-        "id" TEXT NOT NULL,
-        "userId" TEXT NOT NULL,
-        "title" TEXT NOT NULL,
-        "message" TEXT NOT NULL,
-        "type" TEXT NOT NULL,
-        "read" BOOLEAN NOT NULL DEFAULT false,
-        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        CONSTRAINT "Notification_pkey" PRIMARY KEY ("id"),
-        CONSTRAINT "Notification_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE
-      );
-    `);
+  // 6. Table SavingsGoal & SavingsDeposit
+  await run(`
+    CREATE TABLE IF NOT EXISTS "SavingsGoal" (
+      "id" TEXT NOT NULL,
+      "userId" TEXT NOT NULL,
+      "title" TEXT NOT NULL,
+      "targetAmount" DOUBLE PRECISION NOT NULL,
+      "deadline" TEXT NOT NULL,
+      "icon" TEXT NOT NULL,
+      "color" TEXT NOT NULL,
+      "description" TEXT,
+      "isAutoSaveActive" BOOLEAN NOT NULL DEFAULT false,
+      "autoSaveAmount" DOUBLE PRECISION,
+      "checkboxesCount" INTEGER NOT NULL DEFAULT 10,
+      "checkedBoxes" JSONB,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "SavingsGoal_pkey" PRIMARY KEY ("id"),
+      CONSTRAINT "SavingsGoal_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE
+    );
+  `, 'Create table SavingsGoal');
 
-    // 8. Table Budget & BudgetCategory
-    await prisma.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS "Budget" (
-        "id" TEXT NOT NULL,
-        "userId" TEXT NOT NULL,
-        "month" TEXT NOT NULL,
-        "totalBudget" DOUBLE PRECISION NOT NULL,
-        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        CONSTRAINT "Budget_pkey" PRIMARY KEY ("id"),
-        CONSTRAINT "Budget_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE
-      );
-    `);
+  await run(`
+    CREATE TABLE IF NOT EXISTS "SavingsDeposit" (
+      "id" TEXT NOT NULL,
+      "goalId" TEXT NOT NULL,
+      "transactionId" TEXT NOT NULL,
+      "amount" DOUBLE PRECISION NOT NULL,
+      "date" TIMESTAMP(3) NOT NULL,
+      "notes" TEXT,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "SavingsDeposit_pkey" PRIMARY KEY ("id"),
+      CONSTRAINT "SavingsDeposit_goalId_fkey" FOREIGN KEY ("goalId") REFERENCES "SavingsGoal"("id") ON DELETE CASCADE ON UPDATE CASCADE,
+      CONSTRAINT "SavingsDeposit_transactionId_fkey" FOREIGN KEY ("transactionId") REFERENCES "Transaction"("id") ON DELETE CASCADE ON UPDATE CASCADE
+    );
+  `, 'Create table SavingsDeposit');
 
-    await prisma.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS "BudgetCategory" (
-        "id" TEXT NOT NULL,
-        "budgetId" TEXT NOT NULL,
-        "categoryId" TEXT NOT NULL,
-        "limit" DOUBLE PRECISION NOT NULL,
-        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        CONSTRAINT "BudgetCategory_pkey" PRIMARY KEY ("id"),
-        CONSTRAINT "BudgetCategory_budgetId_fkey" FOREIGN KEY ("budgetId") REFERENCES "Budget"("id") ON DELETE CASCADE ON UPDATE CASCADE,
-        CONSTRAINT "BudgetCategory_categoryId_fkey" FOREIGN KEY ("categoryId") REFERENCES "Category"("id") ON DELETE CASCADE ON UPDATE CASCADE
-      );
-    `);
+  // 7. Table Notification
+  await run(`
+    CREATE TABLE IF NOT EXISTS "Notification" (
+      "id" TEXT NOT NULL,
+      "userId" TEXT NOT NULL,
+      "title" TEXT NOT NULL,
+      "message" TEXT NOT NULL,
+      "type" TEXT NOT NULL,
+      "read" BOOLEAN NOT NULL DEFAULT false,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "Notification_pkey" PRIMARY KEY ("id"),
+      CONSTRAINT "Notification_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE
+    );
+  `, 'Create table Notification');
 
-    logger.info('✅ Schéma de base de données synchronisé avec succès');
+  // 8. Table Budget & BudgetCategory
+  await run(`
+    CREATE TABLE IF NOT EXISTS "Budget" (
+      "id" TEXT NOT NULL,
+      "userId" TEXT NOT NULL,
+      "month" TEXT NOT NULL,
+      "totalBudget" DOUBLE PRECISION NOT NULL,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "Budget_pkey" PRIMARY KEY ("id"),
+      CONSTRAINT "Budget_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE
+    );
+  `, 'Create table Budget');
 
-    // 9. Créer les catégories par défaut si elles n'existent pas
+  await run(`
+    CREATE TABLE IF NOT EXISTS "BudgetCategory" (
+      "id" TEXT NOT NULL,
+      "budgetId" TEXT NOT NULL,
+      "categoryId" TEXT NOT NULL,
+      "limit" DOUBLE PRECISION NOT NULL,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "BudgetCategory_pkey" PRIMARY KEY ("id"),
+      CONSTRAINT "BudgetCategory_budgetId_fkey" FOREIGN KEY ("budgetId") REFERENCES "Budget"("id") ON DELETE CASCADE ON UPDATE CASCADE,
+      CONSTRAINT "BudgetCategory_categoryId_fkey" FOREIGN KEY ("categoryId") REFERENCES "Category"("id") ON DELETE CASCADE ON UPDATE CASCADE
+    );
+  `, 'Create table BudgetCategory');
+
+  // 9. Initialiser les catégories par défaut
+  try {
     const categoryCount = await prisma.category.count();
     if (categoryCount === 0) {
       logger.info('📂 Initialisation des catégories par défaut...');
@@ -227,7 +246,10 @@ export const bootstrapDatabase = async (): Promise<void> => {
       }
       logger.info('✅ Catégories par défaut initialisées avec succès');
     }
-  } catch (error) {
-    logger.error('⚠️ Avertissement lors du bootstrap de la base de données:', error);
+  } catch (err: any) {
+    logger.warn(`⚠️ Erreur initialisation catégories: ${err.message}`);
   }
+
+  logger.info(`✅ Bootstrap terminé (${applied} appliqués, ${errors} avertissements)`);
+  return { success: true, applied, errors };
 };
