@@ -3,15 +3,28 @@ import { env } from './config/env';
 import { logger } from './utils/logger';
 import { prisma } from './lib/prisma';
 
+import { bootstrapDatabase } from './lib/bootstrapDb';
+
 const PORT = env.server.port;
 
-// Démarrer le serveur
-const server = app.listen(PORT, () => {
-  logger.info(`🚀 WealthFlow API v2.0.0 démarrée`);
-  logger.info(`📡 Serveur en écoute sur le port ${PORT}`);
-  logger.info(`🌍 Environnement: ${env.server.nodeEnv}`);
-  logger.info(`🔗 URL: http://localhost:${PORT}`);
-  logger.info(`💚 Health check: http://localhost:${PORT}/api/health`);
+let server: any;
+
+// Démarrer le serveur après vérification de la base de données
+const startServer = async () => {
+  await bootstrapDatabase();
+
+  server = app.listen(PORT, () => {
+    logger.info(`🚀 WealthFlow API v2.0.0 démarrée`);
+    logger.info(`📡 Serveur en écoute sur le port ${PORT}`);
+    logger.info(`🌍 Environnement: ${env.server.nodeEnv}`);
+    logger.info(`🔗 URL: http://localhost:${PORT}`);
+    logger.info(`💚 Health check: http://localhost:${PORT}/api/health`);
+  });
+};
+
+startServer().catch((error) => {
+  logger.error('❌ Échec critique du démarrage du serveur:', error);
+  process.exit(1);
 });
 
 // Graceful shutdown

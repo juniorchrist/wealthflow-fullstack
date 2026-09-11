@@ -128,6 +128,12 @@ app.get('/api/health', async (req, res) => {
       WHERE table_name = 'User' OR table_name = 'user'
     `;
 
+    const tables: any = await prisma.$queryRaw`
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public'
+    `;
+
     const maskedUrl = env.database.url.replace(/:\/\/([^:]+):([^@]+)@/, '://$1:****@');
 
     res.status(200).json({
@@ -135,6 +141,7 @@ app.get('/api/health', async (req, res) => {
       message: 'API et base de données opérationnelles',
       database: 'connected',
       dbUrl: maskedUrl,
+      tables: tables.map((t: any) => t.table_name),
       userColumns: columns.map((c: any) => c.column_name),
       timestamp: new Date().toISOString(),
     });
