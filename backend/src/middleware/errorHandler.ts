@@ -95,13 +95,12 @@ export const errorHandler = (
     });
   }
 
-  // Erreur inconnue (ne pas exposer les détails en production)
-  const response: ApiError = {
+  // Erreur inconnue
+  const response: ApiError & { errorDetails?: string } = {
     success: false,
-    message: env.server.nodeEnv === 'production'
-      ? 'Une erreur interne est survenue'
-      : err.message,
+    message: err.message || 'Une erreur interne est survenue',
     code: 'INTERNAL_ERROR',
+    errorDetails: err.message,
   };
 
   return res.status(500).json(response);
