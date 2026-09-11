@@ -58,20 +58,13 @@ export const DashboardView: React.FC = () => {
       ? chartData.slice(-6)
       : chartData;
 
-  const primaryGoal = savingsGoals[0] || {
-    id: 'goal-1',
-    title: 'Objectif Général',
-    targetAmount: 1250000,
-    currentAmount: 850000,
-    checkboxesCount: 10,
-    checkedBoxes: [0, 1, 2, 3, 4, 5, 6],
-  };
+  const primaryGoal = savingsGoals[0] || null;
 
-  const goalProgress = Math.min(
-    100,
-    Math.round((primaryGoal.currentAmount / primaryGoal.targetAmount) * 100)
-  );
-  const goalRemaining = Math.max(0, primaryGoal.targetAmount - primaryGoal.currentAmount);
+  const goalProgress =
+    primaryGoal && primaryGoal.targetAmount > 0
+      ? Math.min(100, Math.round((primaryGoal.currentAmount / primaryGoal.targetAmount) * 100))
+      : 0;
+  const goalRemaining = primaryGoal ? Math.max(0, primaryGoal.targetAmount - primaryGoal.currentAmount) : 0;
 
   const budgetProgress = Math.min(
     100,
@@ -613,30 +606,40 @@ export const DashboardView: React.FC = () => {
               <PiggyBank className="w-3.5 h-3.5" />
             </div>
             <div>
-              <h3 className="font-extrabold text-xs sm:text-sm text-[#18181B]">{primaryGoal.title}</h3>
-              <p className="text-[10px] text-[#6F6F73]">Tirelire & Objectif actif</p>
+              <h3 className="font-extrabold text-xs sm:text-sm text-[#18181B]">
+                {primaryGoal ? primaryGoal.title : 'Épargne & Objectifs'}
+              </h3>
+              <p className="text-[10px] text-[#6F6F73]">
+                {primaryGoal ? 'Tirelire & Objectif actif' : 'Aucun objectif en cours'}
+              </p>
             </div>
           </div>
           <button
             onClick={() => setActiveTab('savings')}
             className="text-xs font-bold text-[#FF5330] flex items-center space-x-0.5 cursor-pointer"
           >
-            <span>Détails</span>
+            <span>{primaryGoal ? 'Détails' : 'Créer'}</span>
             <ChevronRight className="w-3.5 h-3.5" />
           </button>
         </div>
-        <div className="flex items-baseline justify-between pt-0.5">
-          <p className="text-xs font-extrabold text-[#18181B] num-tabular">
-            {formatCurrency(primaryGoal.currentAmount)} / {formatCurrency(primaryGoal.targetAmount)}
-          </p>
-          <span className="text-xs font-black text-[#FF5330] num-tabular">{goalProgress}%</span>
-        </div>
-        <div className="w-full h-1.5 bg-[#F0F0F0] rounded-full overflow-hidden">
-          <div
-            className="h-full bg-[#FF5330] rounded-full transition-all duration-500 ease-out"
-            style={{ width: `${goalProgress}%` }}
-          />
-        </div>
+        {primaryGoal ? (
+          <>
+            <div className="flex items-baseline justify-between pt-0.5">
+              <p className="text-xs font-extrabold text-[#18181B] num-tabular">
+                {formatCurrency(primaryGoal.currentAmount)} / {formatCurrency(primaryGoal.targetAmount)}
+              </p>
+              <span className="text-xs font-black text-[#FF5330] num-tabular">{goalProgress}%</span>
+            </div>
+            <div className="w-full h-1.5 bg-[#F0F0F0] rounded-full overflow-hidden">
+              <div
+                className="h-full bg-[#FF5330] rounded-full transition-all duration-500 ease-out"
+                style={{ width: `${goalProgress}%` }}
+              />
+            </div>
+          </>
+        ) : (
+          <p className="text-xs text-[#A1A1AA] pt-1">Définissez vos objectifs d'épargne pour suivre vos progrès.</p>
+        )}
       </section>
 
       {/* 5. ACTIVITÉ RÉCENTE */}

@@ -174,12 +174,7 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({ onClose }) => 
                 admin
               </code>
             </div>
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] text-[#A1A1AA]">Mot de passe</span>
-              <code className="text-[11px] font-black text-[#18181B] bg-white border border-[#E8E8E8] px-2 py-0.5 rounded-md">
-                wealthflow2026
-              </code>
-            </div>
+    
           </div>
           <p className="text-[10px] text-[#D4D4D8] text-center">
             Espace privé — accès restreint

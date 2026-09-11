@@ -114,21 +114,42 @@ const STORAGE_KEYS = {
 };
 
 export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  // Vérifier si un token réel existe
+  const hasToken = typeof window !== 'undefined' ? Boolean(getAuthToken()) : false;
+
+  // Nettoyage automatique des anciennes données de démo/bêta si pas de token
+  if (typeof window !== 'undefined' && !hasToken) {
+    try {
+      const savedUser = localStorage.getItem(STORAGE_KEYS.USER);
+      if (savedUser && (savedUser.includes('Junior Diploh') || savedUser.includes('junior.diploh'))) {
+        localStorage.removeItem(STORAGE_KEYS.USER);
+        localStorage.removeItem(STORAGE_KEYS.TRANSACTIONS);
+        localStorage.removeItem(STORAGE_KEYS.GOALS);
+        localStorage.removeItem(STORAGE_KEYS.SESSION);
+        localStorage.removeItem(STORAGE_KEYS.NOTIFICATIONS);
+      }
+    } catch {}
+  }
+
   const [userProfile, setUserProfile] = useState<UserProfile>(() => {
     try {
+      const token = getAuthToken();
       const saved = localStorage.getItem(STORAGE_KEYS.USER);
-      return saved ? JSON.parse(saved) : initialUserProfile;
+      if (token && saved) {
+        return JSON.parse(saved);
+      }
+      return initialUserProfile;
     } catch {
       return initialUserProfile;
     }
   });
 
-  // Session & Authentication
+  // Session & Authentication réelles
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     try {
+      const token = getAuthToken();
       const saved = localStorage.getItem(STORAGE_KEYS.SESSION);
-      // If no saved session value, user is not authenticated (shows landing)
-      return saved === 'true';
+      return Boolean(token && saved === 'true');
     } catch {
       return false;
     }
@@ -136,8 +157,9 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const [currentRoute, setCurrentRoute] = useState<AppRoute>(() => {
     try {
+      const token = getAuthToken();
       const saved = localStorage.getItem(STORAGE_KEYS.SESSION);
-      return saved === 'true' ? 'app' : 'landing';
+      return (token && saved === 'true') ? 'app' : 'landing';
     } catch {
       return 'landing';
     }
@@ -261,9 +283,7 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           time: t.time || '12:00',
           notes: t.notes || '',
         }));
-        if (remoteTxs.length > 0) {
-          setTransactions(remoteTxs);
-        }
+        setTransactions(remoteTxs);
       }
 
       // 3. Catégories
@@ -282,7 +302,7 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
       // 4. Objectifs d'épargne
       const goalsRes = await api.savings.getAll();
-      if (goalsRes.success && Array.isArray(goalsRes.data) && goalsRes.data.length > 0) {
+      if (goalsRes.success && Array.isArray(goalsRes.data)) {
         const remoteGoals: SavingsGoal[] = goalsRes.data.map((g: any) => ({
           id: g.id,
           title: g.title,
@@ -302,7 +322,7 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
       // 5. Notifications
       const notifRes = await api.notifications.getAll();
-      if (notifRes.success && Array.isArray(notifRes.data) && notifRes.data.length > 0) {
+      if (notifRes.success && Array.isArray(notifRes.data)) {
         const remoteNotifs: NotificationItem[] = notifRes.data.map((n: any) => ({
           id: n.id,
           title: n.title,
@@ -359,7 +379,15 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     api.auth.logout().catch(() => {});
     clearAuthTokens();
     setIsAuthenticated(false);
-    localStorage.setItem(STORAGE_KEYS.SESSION, 'false');
+    localStorage.removeItem(STORAGE_KEYS.SESSION);
+    localStorage.removeItem(STORAGE_KEYS.USER);
+    localStorage.removeItem(STORAGE_KEYS.TRANSACTIONS);
+    localStorage.removeItem(STORAGE_KEYS.GOALS);
+    localStorage.removeItem(STORAGE_KEYS.NOTIFICATIONS);
+    setUserProfile(initialUserProfile);
+    setTransactions([]);
+    setSavingsGoals([]);
+    setNotifications([]);
     setCurrentRoute('landing');
     setIsLocked(false);
   };
@@ -391,7 +419,7 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(notifications));
   }, [notifications]);
 
-  // Calculations
+  // Calculations réelles basées uniquement sur les opérations effectives
   const totalIncome = transactions
     .filter((t) => t.type === 'income')
     .reduce((acc, curr) => acc + curr.amount, 0);
@@ -402,9 +430,8 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const totalSaved = savingsGoals.reduce((acc, curr) => acc + curr.currentAmount, 0);
 
-  // Base starting balance + income - expenses
-  const startingAnchor = 1520000;
-  const totalBalance = startingAnchor + totalIncome - totalExpenses;
+  // Solde disponible réel : Revenus totaux - Dépenses totales
+  const totalBalance = totalIncome - totalExpenses;
 
   const monthlyBudgetTotal = categories
     .filter((c) => c.type === 'expense')
@@ -413,7 +440,7 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const monthlyBudgetSpent = totalExpenses;
   const monthlyBudgetRemaining = Math.max(0, monthlyBudgetTotal - monthlyBudgetSpent);
 
-  const savingsRate = totalIncome > 0 ? Math.round(((totalIncome - totalExpenses) / totalIncome) * 100) : 38;
+  const savingsRate = totalIncome > 0 ? Math.round(((totalIncome - totalExpenses) / totalIncome) * 100) : 0;
 
   // Currency Formatter: 2 450 000 FCFA
   const formatCurrency = (amount: number, _hideDecimals = true): string => {

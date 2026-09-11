@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
+  AlertCircle,
   ArrowRight,
-  CheckCircle2,
   Eye,
   EyeOff,
   Lock,
@@ -23,88 +23,117 @@ export const AuthModal: React.FC = () => {
     registerUser,
   } = useWealth();
 
-  const [name, setName] = useState('');
+  const [prenom, setPrenom] = useState('');
+  const [nom, setNom] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   if (!isAuthModalOpen) return null;
 
   const handleClose = () => {
     setIsAuthModalOpen(false);
-    setName('');
+    setPrenom('');
+    setNom('');
     setEmail('');
     setPassword('');
+    setErrorMessage(null);
     setIsLoading(false);
   };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMessage(null);
+
+    if (!email.trim() || !password) {
+      setErrorMessage('Veuillez remplir tous les champs');
+      return;
+    }
+
     setIsLoading(true);
+
     try {
       const res = await api.auth.login({
-        email: email.trim(),
+        email: email.trim().toLowerCase(),
         password: password,
       });
 
       if (res.success && res.data?.user) {
         const u = res.data.user;
+        const fullName = `${u.prenom || ''} ${u.nom || ''}`.trim() || u.email;
         login({
-          name: `${u.prenom || ''} ${u.nom || ''}`.trim() || u.email,
+          name: fullName,
           email: u.email,
         });
         handleClose();
-        return;
+      } else {
+        setErrorMessage(res.message || 'Identifiants incorrects. Veuillez réessayer.');
       }
-    } catch (err) {
-      console.warn('Backend login fallback to local session:', err);
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Erreur de connexion au serveur');
+    } finally {
+      setIsLoading(false);
     }
-
-    // Fallback local instantané si backend en cours de réveil ou mode démo
-    login({ name: name || 'Junior', email: email || 'junior@wealthflow.com' });
-    setIsLoading(false);
-    handleClose();
   };
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
-    try {
-      const parts = (name || '').trim().split(' ');
-      const prenom = parts[0] || 'Utilisateur';
-      const nom = parts.slice(1).join(' ') || 'WealthFlow';
+    setErrorMessage(null);
 
+    const cleanPrenom = prenom.trim();
+    const cleanNom = nom.trim();
+    const cleanEmail = email.trim().toLowerCase();
+
+    if (!cleanPrenom || cleanPrenom.length < 2) {
+      setErrorMessage('Le prénom doit contenir au moins 2 caractères');
+      return;
+    }
+
+    if (!cleanNom || cleanNom.length < 2) {
+      setErrorMessage('Le nom doit contenir au moins 2 caractères');
+      return;
+    }
+
+    if (!cleanEmail || !cleanEmail.includes('@')) {
+      setErrorMessage('Veuillez entrer une adresse email valide');
+      return;
+    }
+
+    if (!password || password.length < 6) {
+      setErrorMessage('Le mot de passe doit contenir au moins 6 caractères');
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
       const res = await api.auth.register({
-        email: email.trim(),
+        prenom: cleanPrenom,
+        nom: cleanNom,
+        email: cleanEmail,
         password: password,
-        prenom,
-        nom,
         currency: 'FCFA',
       });
 
       if (res.success && res.data?.user) {
         const u = res.data.user;
+        const fullName = `${u.prenom || ''} ${u.nom || ''}`.trim();
         registerUser({
-          name: `${u.prenom || ''} ${u.nom || ''}`.trim() || name,
+          name: fullName,
           email: u.email,
           currency: u.currency || 'FCFA',
         });
         handleClose();
-        return;
+      } else {
+        setErrorMessage(res.message || 'Erreur lors de la création du compte');
       }
-    } catch (err) {
-      console.warn('Backend register fallback to local session:', err);
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Erreur de connexion au serveur');
+    } finally {
+      setIsLoading(false);
     }
-
-    // Fallback local
-    registerUser({
-      name: name || 'Nouvel utilisateur',
-      email: email || 'user@wealthflow.com',
-      currency: 'FCFA',
-    });
-    setIsLoading(false);
-    handleClose();
   };
 
   return (
@@ -126,14 +155,22 @@ export const AuthModal: React.FC = () => {
               <BrandLogo size="md" showBadge={false} withDarkContainer={false} useOfficialLogo={true} />
             </div>
             <h2 className="text-lg sm:text-xl font-black text-[#18181B] tracking-tight">
-              {authModalMode === 'login' ? 'Bon retour parmi nous' : 'Créez votre espace'}
+              {authModalMode === 'login' ? 'Connexion à votre espace' : 'Créez votre compte réel'}
             </h2>
             <p className="text-xs sm:text-sm text-[#6F6F73]">
               {authModalMode === 'login'
-                ? 'Connectez-vous pour accéder à votre coffre-fort financier.'
-                : 'Commencez à gérer vos finances en quelques secondes.'}
+                ? 'Accédez à votre tableau de bord financier sécurisé.'
+                : 'Commencez à gérer vos finances personnelles en toute sécurité.'}
             </p>
           </div>
+
+          {/* Error display */}
+          {errorMessage && (
+            <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 flex items-start gap-2.5 text-xs text-red-700 animate-in fade-in">
+              <AlertCircle className="w-4 h-4 flex-shrink-0 text-red-500 mt-0.5" />
+              <span className="font-semibold">{errorMessage}</span>
+            </div>
+          )}
 
           {/* Form */}
           <form
@@ -141,18 +178,35 @@ export const AuthModal: React.FC = () => {
             className="space-y-4"
           >
             {authModalMode === 'register' && (
-              <div>
-                <label className="text-xs font-bold text-[#18181B] block mb-1.5">Nom complet</label>
-                <div className="relative">
-                  <User className="w-4 h-4 text-[#A1A1AA] absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    required
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="w-full pl-9 pr-4 py-2.5 bg-[#FAFAFA] border border-[#E8E8E8] rounded-xl text-sm text-[#18181B] font-semibold focus:outline-none focus:border-[#FF5330] transition-colors"
-                    placeholder="Votre nom"
-                  />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-[#18181B] block mb-1.5">Prénom</label>
+                  <div className="relative">
+                    <User className="w-4 h-4 text-[#A1A1AA] absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      required
+                      value={prenom}
+                      onChange={(e) => setPrenom(e.target.value)}
+                      className="w-full pl-9 pr-3 py-2.5 bg-[#FAFAFA] border border-[#E8E8E8] rounded-xl text-xs sm:text-sm text-[#18181B] font-semibold focus:outline-none focus:border-[#FF5330] transition-colors"
+                      placeholder="Jean"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-[#18181B] block mb-1.5">Nom</label>
+                  <div className="relative">
+                    <User className="w-4 h-4 text-[#A1A1AA] absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      required
+                      value={nom}
+                      onChange={(e) => setNom(e.target.value)}
+                      className="w-full pl-9 pr-3 py-2.5 bg-[#FAFAFA] border border-[#E8E8E8] rounded-xl text-xs sm:text-sm text-[#18181B] font-semibold focus:outline-none focus:border-[#FF5330] transition-colors"
+                      placeholder="Kouassi"
+                    />
+                  </div>
                 </div>
               </div>
             )}
@@ -166,8 +220,8 @@ export const AuthModal: React.FC = () => {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-9 pr-4 py-2.5 bg-[#FAFAFA] border border-[#E8E8E8] rounded-xl text-sm text-[#18181B] font-semibold focus:outline-none focus:border-[#FF5330] transition-colors"
-                  placeholder="nom@exemple.com"
+                  className="w-full pl-9 pr-4 py-2.5 bg-[#FAFAFA] border border-[#E8E8E8] rounded-xl text-xs sm:text-sm text-[#18181B] font-semibold focus:outline-none focus:border-[#FF5330] transition-colors"
+                  placeholder="votre.email@exemple.com"
                 />
               </div>
             </div>
@@ -181,8 +235,8 @@ export const AuthModal: React.FC = () => {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-9 pr-10 py-2.5 bg-[#FAFAFA] border border-[#E8E8E8] rounded-xl text-sm text-[#18181B] font-semibold focus:outline-none focus:border-[#FF5330] transition-colors"
-                  placeholder="••••••••"
+                  className="w-full pl-9 pr-10 py-2.5 bg-[#FAFAFA] border border-[#E8E8E8] rounded-xl text-xs sm:text-sm text-[#18181B] font-semibold focus:outline-none focus:border-[#FF5330] transition-colors"
+                  placeholder={authModalMode === 'register' ? 'Minimum 6 caractères' : '••••••••'}
                 />
                 <button
                   type="button"
@@ -217,7 +271,10 @@ export const AuthModal: React.FC = () => {
                 <>
                   Pas encore de compte ?{' '}
                   <button
-                    onClick={() => setAuthModalMode('register')}
+                    onClick={() => {
+                      setErrorMessage(null);
+                      setAuthModalMode('register');
+                    }}
                     className="font-bold text-[#FF5330] cursor-pointer"
                   >
                     Créer un compte
@@ -227,20 +284,16 @@ export const AuthModal: React.FC = () => {
                 <>
                   Déjà un compte ?{' '}
                   <button
-                    onClick={() => setAuthModalMode('login')}
+                    onClick={() => {
+                      setErrorMessage(null);
+                      setAuthModalMode('login');
+                    }}
                     className="font-bold text-[#FF5330] cursor-pointer"
                   >
                     Se connecter
                   </button>
                 </>
               )}
-            </p>
-          </div>
-
-          {/* Demo hint */}
-          <div className="p-3 rounded-xl bg-[#F7F7F7] border border-[#E8E8E8] text-center">
-            <p className="text-[11px] text-[#6F6F73]">
-              <strong className="text-[#18181B]">Démo :</strong> Utilisez n'importe quels identifiants pour tester l'application.
             </p>
           </div>
         </div>
