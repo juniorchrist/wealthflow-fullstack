@@ -93,8 +93,19 @@ if (env.server.nodeEnv === 'development') {
 }
 
 // ============================================================================
-// HEALTH CHECK
+// HEALTH CHECK & RACINE
 // ============================================================================
+
+app.get('/', (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: 'WealthFlow API v2.0.0 est opérationnelle',
+    version: '2.0.0',
+    health: '/health',
+    api: '/api',
+    environment: env.server.nodeEnv,
+  });
+});
 
 app.get('/health', (req, res) => {
   res.status(200).json({
