@@ -122,17 +122,28 @@ app.get('/api/health', async (req, res) => {
     const { prisma } = await import('./lib/prisma');
     await prisma.$queryRaw`SELECT 1`;
 
+    const columns: any = await prisma.$queryRaw`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'User' OR table_name = 'user'
+    `;
+
+    const maskedUrl = env.database.url.replace(/:\/\/([^:]+):([^@]+)@/, '://$1:****@');
+
     res.status(200).json({
       success: true,
       message: 'API et base de données opérationnelles',
       database: 'connected',
+      dbUrl: maskedUrl,
+      userColumns: columns.map((c: any) => c.column_name),
       timestamp: new Date().toISOString(),
     });
-  } catch (error) {
+  } catch (error: any) {
     res.status(503).json({
       success: false,
       message: 'Erreur de connexion à la base de données',
       database: 'disconnected',
+      error: error.message,
       timestamp: new Date().toISOString(),
     });
   }
