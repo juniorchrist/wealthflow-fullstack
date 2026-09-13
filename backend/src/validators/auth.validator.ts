@@ -7,27 +7,47 @@ export const registerSchema = z.object({
   body: z.object({
     prenom: z
       .string()
-      .min(2, 'Le prénom doit contenir au moins 2 caractères')
-      .max(50, 'Le prénom ne peut pas dépasser 50 caractères'),
+      .max(50, 'Le prénom ne peut pas dépasser 50 caractères')
+      .optional(),
     nom: z
       .string()
-      .min(2, 'Le nom doit contenir au moins 2 caractères')
-      .max(50, 'Le nom ne peut pas dépasser 50 caractères'),
+      .max(50, 'Le nom ne peut pas dépasser 50 caractères')
+      .optional(),
+    firstName: z.string().optional(),
+    lastName: z.string().optional(),
+    name: z.string().optional(),
     email: z
       .string()
       .email('Adresse email invalide')
       .toLowerCase(),
     password: z
       .string()
-      .min(4, 'Le code doit contenir exactement 4 chiffres')
-      .max(4, 'Le code doit contenir exactement 4 chiffres')
-      .regex(/^\d{4}$/, 'Le code doit contenir exactement 4 chiffres'),
+      .min(4, 'Le mot de passe doit contenir au moins 4 caractères')
+      .max(100, 'Le mot de passe ne peut pas dépasser 100 caractères'),
     numero: z
       .string()
-      .optional(),
+      .optional()
+      .nullable(),
+    phone: z
+      .string()
+      .optional()
+      .nullable(),
     currency: z
       .string()
+      .optional()
       .default('FCFA'),
+  }).transform((data) => {
+    const prenom = data.prenom || data.firstName || (data.name ? data.name.split(' ')[0] : 'Utilisateur');
+    const nom = data.nom || data.lastName || (data.name ? data.name.split(' ').slice(1).join(' ') : 'WealthFlow');
+    const numero = data.numero || data.phone || null;
+    return {
+      email: data.email,
+      password: data.password,
+      prenom: prenom || 'Utilisateur',
+      nom: nom || 'WealthFlow',
+      numero: numero || undefined,
+      currency: data.currency || 'FCFA',
+    };
   }),
 });
 

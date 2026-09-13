@@ -35,17 +35,19 @@ export const errorHandler = (
   // Erreur de validation Zod
   if (err instanceof ZodError) {
     const errors: Record<string, string[]> = {};
+    const messages: string[] = [];
     err.errors.forEach((error) => {
       const path = error.path.join('.');
       if (!errors[path]) {
         errors[path] = [];
       }
       errors[path].push(error.message);
+      messages.push(error.message);
     });
 
     const response: ApiError = {
       success: false,
-      message: 'Erreur de validation',
+      message: messages.length > 0 ? messages.join(', ') : 'Erreur de validation',
       code: 'VALIDATION_ERROR',
       errors,
     };

@@ -77,9 +77,17 @@ async function apiRequest<T>(
         }
       }
 
+      let errorMsg = result.message || `Erreur HTTP ${response.status}`;
+      if (result.errors && typeof result.errors === 'object') {
+        const fieldErrors = Object.values(result.errors).flat().filter(Boolean);
+        if (fieldErrors.length > 0) {
+          errorMsg = fieldErrors.join(', ');
+        }
+      }
+
       return {
         success: false,
-        message: result.message || `Erreur HTTP ${response.status}`,
+        message: errorMsg,
         error: result,
       };
     }
