@@ -10,6 +10,7 @@ import {
   Eye,
   EyeOff,
   Grid2X2,
+  Headphones,
   LineChart,
   Lock,
   Menu,
@@ -453,15 +454,15 @@ export const DashboardView: React.FC = () => {
               </button>
 
               <button
-                onClick={() => { setActiveTab('security'); setIsMenuOpen(false); }}
+                onClick={() => { setActiveTab('help-center'); setIsMenuOpen(false); }}
                 className={`flex flex-col items-center gap-2 p-3 rounded-xl transition-all cursor-pointer ${
-                  activeTab === 'security'
+                  activeTab === 'help-center'
                     ? 'bg-[#FF5330]/10 text-[#FF5330]'
                     : 'bg-[#F7F7F7] text-[#52525B] active:bg-[#E8E8E8]'
                 }`}
               >
-                <Shield className="w-6 h-6" />
-                <span className="text-xs font-bold">Sécurité</span>
+                <Headphones className="w-6 h-6" />
+                <span className="text-xs font-bold text-center">Centre d'aide</span>
               </button>
             </div>
           </div>
