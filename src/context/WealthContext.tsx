@@ -366,8 +366,12 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       name: data.name || userProfile.name,
       email: data.email || userProfile.email,
       currency: data.currency || userProfile.currency,
-      // Le mot de passe d'inscription sert de code de déverrouillage
-      pinCode: data.password || userProfile.pinCode || '1234',
+      // Le code de déverrouillage prend 4 chiffres (ou 1234 par défaut)
+      pinCode: (data.password && /^\d{4}$/.test(data.password))
+        ? data.password
+        : (userProfile.pinCode && /^\d{4}$/.test(userProfile.pinCode))
+          ? userProfile.pinCode
+          : '1234',
       isPinEnabled: true,
       phone: data.phone || userProfile.phone,
       createdAt: new Date().toISOString(),
