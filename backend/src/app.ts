@@ -44,6 +44,9 @@ app.use((req, res, next) => {
     const isAllowed =
       allowedOriginsSet.has(cleanOrigin) ||
       cleanOrigin.endsWith('.netlify.app') ||
+      cleanOrigin.includes('infinityfreeapp.com') ||
+      cleanOrigin.includes('epizy.com') ||
+      cleanOrigin.includes('rf.gd') ||
       cleanOrigin.includes('localhost') ||
       cleanOrigin.includes('127.0.0.1') ||
       env.server.nodeEnv === 'development';

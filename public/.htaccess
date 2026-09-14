@@ -1,0 +1,48 @@
+# ==============================================================================
+# WEALTHFLOW V2 - CONFIGURATION APACHE / INFINITYFREE
+# ==============================================================================
+
+# 1. Empêcher l'affichage de l'arborescence des dossiers
+Options -Indexes
+
+# 2. Support des Single Page Applications (SPA) React / Vite
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+
+  # Si le fichier ou dossier demandé existe physiquement, le servir directement
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  # Sinon, rediriger toutes les routes vers index.html
+  RewriteRule ^ index.html [L]
+</IfModule>
+
+# 3. Types MIME corrects (évite les erreurs de scripts bloqués en strict MIME)
+<IfModule mod_mime.c>
+  AddType text/html .html
+  AddType text/css .css
+  AddType application/javascript .js .mjs
+  AddType application/json .json
+  AddType image/svg+xml .svg
+  AddType image/png .png
+  AddType image/jpeg .jpg .jpeg
+  AddType image/webp .webp
+  AddType font/woff2 .woff2
+</IfModule>
+
+# 4. En-têtes de sécurité
+<IfModule mod_headers.c>
+  Header set X-Content-Type-Options "nosniff"
+  Header set X-Frame-Options "SAMEORIGIN"
+  Header set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+
+# 5. Mise en cache optimisée pour les assets statiques avec hash
+<IfModule mod_expires.c>
+  ExpiresActive On
+  ExpiresDefault "access plus 1 month"
+  ExpiresByType text/html "access plus 0 seconds"
+  ExpiresByType application/json "access plus 0 seconds"
+</IfModule>
