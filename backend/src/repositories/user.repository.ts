@@ -78,6 +78,50 @@ export const updateUser = async (
 };
 
 /**
+ * Obtenir tous les utilisateurs pour la vue admin
+ */
+export const getAllUsers = async () => {
+  return prisma.user.findMany({
+    select: {
+      id: true,
+      email: true,
+      nom: true,
+      prenom: true,
+      numero: true,
+      avatar: true,
+      currency: true,
+      plan: true,
+      createdAt: true,
+      updatedAt: true,
+      transactions: {
+        select: {
+          amount: true,
+          type: true,
+        },
+      },
+      savingsGoals: {
+        select: {
+          targetAmount: true,
+          deposits: {
+            select: {
+              amount: true,
+            },
+          },
+        },
+      },
+      budgets: {
+        select: {
+          totalBudget: true,
+        },
+      },
+    },
+    orderBy: {
+      createdAt: 'desc',
+    },
+  });
+};
+
+/**
  * Supprimer un utilisateur (admin uniquement)
  */
 export const deleteUser = async (userId: string): Promise<User> => {

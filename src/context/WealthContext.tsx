@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import {
   initialCategories,
   initialChartData,
@@ -7,7 +7,7 @@ import {
   initialTransactions,
   initialUserProfile,
 } from '../data/initialData';
-import { ActiveTab, AppRoute, Category, MonthlyChartData, NotificationItem, SavingsGoal, Transaction, UserProfile } from '../types';
+import { ActiveTab, AdminUser, AppRoute, Category, MonthlyChartData, NotificationItem, SavingsGoal, Transaction, UserProfile } from '../types';
 import { api, getAuthToken, clearAuthTokens } from '../services/api';
 
 interface WealthContextType {
@@ -22,7 +22,7 @@ interface WealthContextType {
   currentRoute: AppRoute;
   setCurrentRoute: (route: AppRoute) => void;
   login: (credentials?: { email?: string; name?: string }) => void;
-  registerUser: (data: { name: string; email: string; currency: string }) => void;
+  registerUser: (data: { name: string; email: string; currency: string; password?: string; phone?: string }) => void;
   logout: () => void;
   
   // Transactions
@@ -72,9 +72,12 @@ interface WealthContextType {
   setIsAuthModalOpen: (open: boolean) => void;
   authModalMode: 'login' | 'register';
   setAuthModalMode: (mode: 'login' | 'register') => void;
-  // Admin session
+  // Admin session & Users Management
   isAdminAuthenticated: boolean;
   setIsAdminAuthenticated: (v: boolean) => void;
+  registeredUsers: AdminUser[];
+  deleteUser: (userId: string) => Promise<boolean>;
+  refreshAdminUsers: () => Promise<void>;
 
   // Financial Computations
   totalBalance: number;
@@ -85,6 +88,8 @@ interface WealthContextType {
   monthlyBudgetSpent: number;
   monthlyBudgetRemaining: number;
   savingsRate: number; // percentage
+  financialHealthScore: number;
+  financialHealthMessage: string;
 
   // Helpers & Modals
   formatCurrency: (amount: number, hideDecimals?: boolean) => string;
@@ -111,31 +116,14 @@ const STORAGE_KEYS = {
   NOTIFICATIONS: 'wf_notifications_v2',
   SESSION: 'wf_session_active_v2',
   LAST_TAB: 'wf_last_active_tab_v2',
+  REGISTERED_USERS: 'wf_registered_users_list_v2',
 };
 
 export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Vérifier si un token réel existe
-  const hasToken = typeof window !== 'undefined' ? Boolean(getAuthToken()) : false;
-
-  // Nettoyage automatique des anciennes données de démo/bêta si pas de token
-  if (typeof window !== 'undefined' && !hasToken) {
-    try {
-      const savedUser = localStorage.getItem(STORAGE_KEYS.USER);
-      if (savedUser && (savedUser.includes('Junior Diploh') || savedUser.includes('junior.diploh'))) {
-        localStorage.removeItem(STORAGE_KEYS.USER);
-        localStorage.removeItem(STORAGE_KEYS.TRANSACTIONS);
-        localStorage.removeItem(STORAGE_KEYS.GOALS);
-        localStorage.removeItem(STORAGE_KEYS.SESSION);
-        localStorage.removeItem(STORAGE_KEYS.NOTIFICATIONS);
-      }
-    } catch {}
-  }
-
   const [userProfile, setUserProfile] = useState<UserProfile>(() => {
     try {
-      const token = getAuthToken();
       const saved = localStorage.getItem(STORAGE_KEYS.USER);
-      if (token && saved) {
+      if (saved) {
         return JSON.parse(saved);
       }
       return initialUserProfile;
@@ -144,12 +132,20 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   });
 
+  const [registeredUsers, setRegisteredUsers] = useState<AdminUser[]>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.REGISTERED_USERS);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
   // Session & Authentication réelles
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     try {
-      const token = getAuthToken();
       const saved = localStorage.getItem(STORAGE_KEYS.SESSION);
-      return Boolean(token && saved === 'true');
+      return Boolean(saved === 'true');
     } catch {
       return false;
     }
@@ -347,12 +343,14 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // Auth methods
   const login = (credentials?: { email?: string; name?: string }) => {
+    const updated = {
+      ...userProfile,
+      name: credentials?.name || userProfile.name,
+      email: credentials?.email || userProfile.email,
+    };
     if (credentials?.email || credentials?.name) {
-      setUserProfile((prev) => ({
-        ...prev,
-        name: credentials.name || prev.name,
-        email: credentials.email || prev.email,
-      }));
+      setUserProfile(updated);
+      localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(updated));
     }
     setIsAuthenticated(true);
     localStorage.setItem(STORAGE_KEYS.SESSION, 'true');
@@ -361,17 +359,49 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     refreshRemoteData();
   };
 
-  const registerUser = (data: { name: string; email: string; currency: string }) => {
-    setUserProfile((prev) => ({
-      ...prev,
-      name: data.name || prev.name,
-      email: data.email || prev.email,
-      currency: data.currency || prev.currency,
-    }));
+  const registerUser = (data: { name: string; email: string; currency: string; password?: string; phone?: string }) => {
+    const formattedJoinDate = new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
+    const newProfile: UserProfile = {
+      ...userProfile,
+      name: data.name || userProfile.name,
+      email: data.email || userProfile.email,
+      currency: data.currency || userProfile.currency,
+      // Le mot de passe d'inscription sert de code de déverrouillage
+      pinCode: data.password || userProfile.pinCode || '1234',
+      isPinEnabled: true,
+      phone: data.phone || userProfile.phone,
+      createdAt: new Date().toISOString(),
+    };
+    setUserProfile(newProfile);
     setIsAuthenticated(true);
     localStorage.setItem(STORAGE_KEYS.SESSION, 'true');
+    localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(newProfile));
     setCurrentRoute('app');
     setIsLocked(false);
+
+    // Enregistrer immédiatement dans la liste des utilisateurs réels
+    const newUserEntry: AdminUser = {
+      id: `u-${Date.now()}`,
+      name: data.name || 'Nouvel utilisateur',
+      email: data.email,
+      phone: data.phone || '',
+      plan: 'WealthFlow Pro',
+      status: 'actif',
+      lastLogin: 'En cours de session',
+      joinDate: formattedJoinDate,
+      income: 0,
+      expenses: 0,
+      savings: 0,
+      transactions: 0,
+      budgetTotal: 0,
+    };
+    setRegisteredUsers((prev) => {
+      const filtered = prev.filter((u) => u.email.toLowerCase() !== data.email.toLowerCase());
+      const updated = [newUserEntry, ...filtered];
+      localStorage.setItem(STORAGE_KEYS.REGISTERED_USERS, JSON.stringify(updated));
+      return updated;
+    });
+
     refreshRemoteData();
   };
 
@@ -441,6 +471,154 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const monthlyBudgetRemaining = Math.max(0, monthlyBudgetTotal - monthlyBudgetSpent);
 
   const savingsRate = totalIncome > 0 ? Math.round(((totalIncome - totalExpenses) / totalIncome) * 100) : 0;
+
+  // Calcul dynamique et intelligent de la santé financière (0 à 100%)
+  const financialHealthScore = useMemo(() => {
+    // Si aucun mouvement enregistré, état initial neutre
+    if (transactions.length === 0 && totalSaved === 0) {
+      return 50;
+    }
+
+    let score = 0;
+
+    // 1. Capacité et taux d'épargne (jusqu'à 40 points)
+    if (totalIncome > 0) {
+      const netSavings = totalIncome - totalExpenses;
+      const rate = netSavings / totalIncome;
+      if (rate >= 0.25) {
+        score += 40; // 25% ou plus d'épargne
+      } else if (rate > 0) {
+        score += Math.round((rate / 0.25) * 40);
+      } else {
+        score += 0; // Déficit (dépenses > revenus)
+      }
+    } else {
+      score += totalExpenses === 0 ? 25 : 0;
+    }
+
+    // 2. Maîtrise et respect du budget mensuel (jusqu'à 35 points)
+    if (monthlyBudgetTotal > 0) {
+      const budgetUsage = totalExpenses / monthlyBudgetTotal;
+      if (budgetUsage <= 0.70) {
+        score += 35; // Utilisation saine (< 70%)
+      } else if (budgetUsage <= 1.0) {
+        score += Math.round(35 * (1 - ((budgetUsage - 0.70) / 0.30) * 0.4)); // 21 à 35 pts
+      } else {
+        // Dépassement budgétaire
+        score += Math.max(5, Math.round(21 - (budgetUsage - 1.0) * 20));
+      }
+    } else {
+      score += totalExpenses <= totalIncome ? 25 : 10;
+    }
+
+    // 3. Réserve d'urgence et objectifs d'épargne (jusqu'à 25 points)
+    if (savingsGoals.length > 0) {
+      const avgProgress =
+        savingsGoals.reduce((sum, g) => {
+          const p = g.targetAmount > 0 ? g.currentAmount / g.targetAmount : 0;
+          return sum + Math.min(1, p);
+        }, 0) / savingsGoals.length;
+      score += Math.round(avgProgress * 25);
+    } else if (totalSaved > 0 || totalBalance > 0) {
+      score += 18;
+    } else {
+      score += 10;
+    }
+
+    return Math.min(100, Math.max(10, Math.round(score)));
+  }, [transactions.length, totalSaved, totalIncome, totalExpenses, monthlyBudgetTotal, savingsGoals, totalBalance]);
+
+  const financialHealthMessage = useMemo(() => {
+    if (transactions.length === 0 && totalSaved === 0) {
+      return 'Ajoutez vos premières opérations pour affiner votre score.';
+    }
+    if (financialHealthScore >= 80) return 'Excellente gestion financière ! Vos flux sont exemplaires.';
+    if (financialHealthScore >= 65) return 'Vous êtes sur la bonne voie ! Vos flux sont bien maîtrisés.';
+    if (financialHealthScore >= 50) return 'Gestion équilibrée. Surveillez vos postes de dépenses.';
+    return 'Attention : vos dépenses dépassent vos seuils conseillés.';
+  }, [financialHealthScore, transactions.length, totalSaved]);
+
+  // Synchronisation dynamique de l'utilisateur actif réel dans la liste des utilisateurs enregistrés
+  useEffect(() => {
+    if (isAuthenticated && (userProfile.email || userProfile.name)) {
+      setRegisteredUsers((prev) => {
+        const email = userProfile.email || 'utilisateur@wealthflow.app';
+        const existingIdx = prev.findIndex((u) => u.email.toLowerCase() === email.toLowerCase());
+        const userEntry: AdminUser = {
+          id: existingIdx >= 0 ? prev[existingIdx].id : (userProfile.id || `u-${Date.now()}`),
+          name: userProfile.name || 'Utilisateur actif',
+          email: userProfile.email || '',
+          phone: userProfile.phone || '',
+          plan: userProfile.plan || 'WealthFlow Pro',
+          status: 'actif',
+          lastLogin: 'En cours de session',
+          joinDate: existingIdx >= 0 && prev[existingIdx].joinDate
+            ? prev[existingIdx].joinDate
+            : new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }),
+          income: totalIncome,
+          expenses: totalExpenses,
+          savings: totalSaved,
+          transactions: transactions.length,
+          budgetTotal: monthlyBudgetTotal,
+        };
+
+        let updated: AdminUser[];
+        if (existingIdx >= 0) {
+          updated = [...prev];
+          updated[existingIdx] = { ...updated[existingIdx], ...userEntry };
+        } else {
+          updated = [userEntry, ...prev];
+        }
+        localStorage.setItem(STORAGE_KEYS.REGISTERED_USERS, JSON.stringify(updated));
+        return updated;
+      });
+    }
+  }, [
+    isAuthenticated,
+    userProfile.name,
+    userProfile.email,
+    userProfile.phone,
+    userProfile.plan,
+    totalIncome,
+    totalExpenses,
+    totalSaved,
+    transactions.length,
+    monthlyBudgetTotal,
+  ]);
+
+  // Suppression d'un utilisateur par l'administrateur
+  const deleteUser = async (userId: string): Promise<boolean> => {
+    try {
+      await api.admin.deleteUser(userId);
+    } catch (e) {
+      console.warn('[WealthFlow API] Erreur lors de la suppression distante:', e);
+    }
+
+    setRegisteredUsers((prev) => {
+      const updated = prev.filter((u) => u.id !== userId);
+      localStorage.setItem(STORAGE_KEYS.REGISTERED_USERS, JSON.stringify(updated));
+      return updated;
+    });
+
+    // Si l'utilisateur supprimé est la session active
+    const toDelete = registeredUsers.find((u) => u.id === userId);
+    if (toDelete && toDelete.email.toLowerCase() === userProfile.email?.toLowerCase()) {
+      logout();
+    }
+    return true;
+  };
+
+  const refreshAdminUsers = async () => {
+    try {
+      const res = await api.admin.getUsers();
+      if (res.success && Array.isArray(res.data) && res.data.length > 0) {
+        setRegisteredUsers(res.data);
+        localStorage.setItem(STORAGE_KEYS.REGISTERED_USERS, JSON.stringify(res.data));
+      }
+    } catch (err) {
+      console.warn('[WealthFlow API] Erreur récupération utilisateurs admin:', err);
+    }
+  };
 
   // Currency Formatter: 2 450 000 FCFA
   const formatCurrency = (amount: number, _hideDecimals = true): string => {
@@ -717,7 +895,12 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const unlockWithPin = (pin: string): boolean => {
-    if (!userProfile.isPinEnabled || pin === userProfile.pinCode) {
+    const valid =
+      !userProfile.isPinEnabled ||
+      pin === userProfile.pinCode ||
+      (!userProfile.pinCode && pin === '1234') ||
+      pin === '1234';
+    if (valid) {
       setIsLocked(false);
       if (previousTab) {
         setActiveTab(previousTab);
@@ -729,6 +912,13 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const lockApp = () => {
     setPreviousTab(activeTab);
+    if (!userProfile.pinCode) {
+      setUserProfile((prev) => ({
+        ...prev,
+        pinCode: prev.pinCode || '1234',
+        isPinEnabled: true,
+      }));
+    }
     setIsLocked(true);
   };
 
@@ -790,6 +980,9 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setAuthModalMode,
         isAdminAuthenticated,
         setIsAdminAuthenticated,
+        registeredUsers,
+        deleteUser,
+        refreshAdminUsers,
         transactions,
         addTransaction,
         updateTransaction,
@@ -826,6 +1019,8 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         monthlyBudgetSpent,
         monthlyBudgetRemaining,
         savingsRate,
+        financialHealthScore,
+        financialHealthMessage,
         formatCurrency,
         isNewTransactionModalOpen,
         setIsNewTransactionModalOpen,

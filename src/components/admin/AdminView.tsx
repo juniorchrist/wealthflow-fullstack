@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Activity,
   AlertTriangle,
@@ -14,19 +14,23 @@ import {
   LayoutDashboard,
   LogOut,
   MoreHorizontal,
+  Phone,
   PiggyBank,
   Plus,
+  RotateCw,
   Save,
   Search,
   Settings,
   Shield,
   Tags,
+  Trash2,
   TrendingDown,
   TrendingUp,
   Users,
   X,
 } from 'lucide-react';
 import { useWealth } from '../../context/WealthContext';
+import { AdminUser } from '../../types';
 import { BrandLogo } from '../common/BrandLogo';
 import { CategoryIcon } from '../common/CategoryIcon';
 
@@ -40,31 +44,6 @@ const ADMIN_NAV: { id: AdminSection; label: string; icon: React.ElementType }[] 
   { id: 'finances',      label: 'Finances globales',  icon: BarChart3 },
   { id: 'logs',          label: "Journaux d'activité", icon: ClipboardList },
   { id: 'site-settings', label: 'Paramètres du site', icon: Settings },
-];
-
-// ─── Données simulées multi-utilisateurs ───────────────────────────────────────
-interface SimUser {
-  id: string;
-  name: string;
-  email: string;
-  plan: string;
-  status: 'actif' | 'inactif';
-  lastLogin: string;
-  joinDate: string;
-  income: number;
-  expenses: number;
-  savings: number;
-  transactions: number;
-  budgetTotal: number;
-}
-
-const SIMULATED_USERS: SimUser[] = [
-  { id: 'u-2', name: 'Aïssatou Diallo', email: 'aissatou.d@example.com', plan: 'Standard', status: 'actif', lastLogin: 'Aujourd\'hui 09:14', joinDate: '12 Jan 2026', income: 650000, expenses: 420000, savings: 180000, transactions: 34, budgetTotal: 500000 },
-  { id: 'u-3', name: 'Kofi Mensah', email: 'k.mensah@example.com', plan: 'WealthFlow Pro', status: 'actif', lastLogin: 'Hier 21:30', joinDate: '03 Mars 2026', income: 1200000, expenses: 870000, savings: 330000, transactions: 87, budgetTotal: 950000 },
-  { id: 'u-4', name: 'Fatou Sow', email: 'fatousow@example.com', plan: 'Standard', status: 'inactif', lastLogin: 'Il y a 14 jours', joinDate: '29 Avr 2026', income: 430000, expenses: 390000, savings: 40000, transactions: 21, budgetTotal: 420000 },
-  { id: 'u-5', name: 'Mamadou Traoré', email: 'mam.traore@example.com', plan: 'WealthFlow Pro', status: 'actif', lastLogin: 'Aujourd\'hui 14:02', joinDate: '08 Fév 2026', income: 2100000, expenses: 1540000, savings: 560000, transactions: 143, budgetTotal: 1800000 },
-  { id: 'u-6', name: 'Awa Coulibaly', email: 'awa.coul@example.com', plan: 'Standard', status: 'inactif', lastLogin: 'Il y a 32 jours', joinDate: '17 Mai 2026', income: 380000, expenses: 350000, savings: 30000, transactions: 12, budgetTotal: 380000 },
-  { id: 'u-7', name: 'Ibrahim Touré', email: 'i.toure@example.com', plan: 'WealthFlow Pro', status: 'actif', lastLogin: 'Hier 18:55', joinDate: '22 Juin 2026', income: 900000, expenses: 640000, savings: 260000, transactions: 59, budgetTotal: 750000 },
 ];
 
 // Clé localStorage pour les paramètres du site
@@ -115,34 +94,79 @@ export const AdminView: React.FC = () => {
     logout,
     exportDataJSON,
     monthlyBudgetTotal,
+    registeredUsers,
+    deleteUser,
+    refreshAdminUsers,
   } = useWealth();
 
   const [activeSection, setActiveSection] = useState<AdminSection>('dashboard');
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [userSearch, setUserSearch] = useState('');
   const [userFilter, setUserFilter] = useState<'all' | 'actif' | 'inactif'>('all');
-  const [selectedUser, setSelectedUser] = useState<SimUser | null>(null);
+  const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
+  const [userToDelete, setUserToDelete] = useState<AdminUser | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [actionFeedback, setActionFeedback] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [siteSettings, setSiteSettings] = useState<SiteSettings>(loadSiteSettings);
   const [siteSettingsDraft, setSiteSettingsDraft] = useState<SiteSettings>(loadSiteSettings);
   const [settingsSaved, setSettingsSaved] = useState(false);
 
-  // Utilisateur actif réel combiné aux simulés
-  const realUser: SimUser = {
-    id: 'u-1',
-    name: userProfile.name || 'Utilisateur actif',
-    email: userProfile.email || '',
-    plan: userProfile.plan || 'WealthFlow Pro',
-    status: 'actif',
-    lastLogin: 'En cours de session',
-    joinDate: '01 Sept 2026',
-    income: totalIncome,
-    expenses: totalExpenses,
-    savings: totalSaved,
-    transactions: transactions.length,
-    budgetTotal: monthlyBudgetTotal,
+  useEffect(() => {
+    refreshAdminUsers();
+  }, [refreshAdminUsers]);
+
+  // Utilisateurs 100% réels (aucun compte fictif)
+  const ALL_USERS: AdminUser[] = useMemo(() => {
+    if (registeredUsers.length > 0) {
+      return registeredUsers;
+    }
+    // Si la liste est encore vide mais qu'un profil utilisateur est présent
+    if (userProfile.email || userProfile.name) {
+      const formattedJoin = userProfile.createdAt
+        ? new Date(userProfile.createdAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })
+        : new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
+      return [
+        {
+          id: userProfile.id || 'u-1',
+          name: userProfile.name || userProfile.email.split('@')[0] || 'Utilisateur',
+          email: userProfile.email || '',
+          phone: userProfile.phone || '',
+          plan: userProfile.plan || 'WealthFlow Pro',
+          status: 'actif',
+          lastLogin: 'En cours de session',
+          joinDate: formattedJoin,
+          income: totalIncome,
+          expenses: totalExpenses,
+          savings: totalSaved,
+          transactions: transactions.length,
+          budgetTotal: monthlyBudgetTotal,
+        },
+      ];
+    }
+    return [];
+  }, [registeredUsers, userProfile, totalIncome, totalExpenses, totalSaved, transactions.length, monthlyBudgetTotal]);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await refreshAdminUsers();
+    setIsRefreshing(false);
+    setActionFeedback('Synchronisation réussie');
+    setTimeout(() => setActionFeedback(null), 2500);
   };
 
-  const ALL_USERS: SimUser[] = [realUser, ...SIMULATED_USERS];
+  const handleConfirmDelete = async () => {
+    if (!userToDelete) return;
+    setDeleteLoading(true);
+    await deleteUser(userToDelete.id);
+    if (selectedUser?.id === userToDelete.id) {
+      setSelectedUser(null);
+    }
+    setDeleteLoading(false);
+    setUserToDelete(null);
+    setActionFeedback('Utilisateur supprimé avec succès');
+    setTimeout(() => setActionFeedback(null), 2500);
+  };
 
   // Statistiques globales agrégées
   const globalStats = useMemo(() => {
@@ -319,12 +343,25 @@ export const AdminView: React.FC = () => {
           <div className="space-y-5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
-                <h2 className="text-xl font-black text-[#18181B] tracking-tight">Utilisateurs</h2>
-                <p className="text-xs text-[#6F6F73] mt-0.5">{globalStats.totalUsers} comptes · {globalStats.activeUsers} actifs · {globalStats.inactiveUsers} inactifs</p>
+                <h2 className="text-xl font-black text-[#18181B] tracking-tight">Utilisateurs réels</h2>
+                <p className="text-xs text-[#6F6F73] mt-0.5">
+                  {globalStats.totalUsers} compte{globalStats.totalUsers > 1 ? 's' : ''} enregistré{globalStats.totalUsers > 1 ? 's' : ''} · {globalStats.activeUsers} actif{globalStats.activeUsers > 1 ? 's' : ''}
+                </p>
               </div>
-              <div className="flex items-center gap-2 text-[10px] font-bold">
-                <span className="px-2.5 py-1 rounded-full bg-[#10B981]/10 text-[#10B981]">{globalStats.activeUsers} actifs</span>
-                <span className="px-2.5 py-1 rounded-full bg-[#F97316]/10 text-[#F97316]">{globalStats.inactiveUsers} inactifs</span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleRefresh}
+                  disabled={isRefreshing}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-[#E8E8E8] text-xs font-bold text-[#18181B] hover:bg-[#F7F7F7] active:scale-95 transition-all cursor-pointer disabled:opacity-60"
+                  title="Synchroniser avec la base de données"
+                >
+                  <RotateCw className={`w-3.5 h-3.5 text-[#FF5330] ${isRefreshing ? 'animate-spin' : ''}`} />
+                  <span>{isRefreshing ? 'Chargement...' : 'Actualiser'}</span>
+                </button>
+                <div className="flex items-center gap-1 text-[10px] font-bold">
+                  <span className="px-2.5 py-1 rounded-full bg-[#10B981]/10 text-[#10B981]">{globalStats.activeUsers} actifs</span>
+                  <span className="px-2.5 py-1 rounded-full bg-[#F97316]/10 text-[#F97316]">{globalStats.inactiveUsers} inactifs</span>
+                </div>
               </div>
             </div>
 
@@ -334,23 +371,33 @@ export const AdminView: React.FC = () => {
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-12 h-12 rounded-full bg-[#18181B] flex items-center justify-center text-white text-lg font-black">
-                      {selectedUser.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                      {selectedUser.name ? selectedUser.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : 'U'}
                     </div>
                     <div>
-                      <p className="font-black text-sm text-[#18181B]">{selectedUser.name}</p>
+                      <p className="font-black text-sm text-[#18181B]">{selectedUser.name || 'Utilisateur'}</p>
                       <p className="text-xs text-[#6F6F73]">{selectedUser.email}</p>
+                      {selectedUser.phone && (
+                        <div className="flex items-center gap-1 text-[11px] text-[#6F6F73] mt-0.5">
+                          <Phone className="w-3 h-3 text-[#FF5330]" />
+                          <span>{selectedUser.phone}</span>
+                        </div>
+                      )}
                       <div className="flex items-center gap-1.5 mt-1">
-                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${selectedUser.status === 'actif' ? 'bg-[#10B981]/10 text-[#10B981]' : 'bg-[#F97316]/10 text-[#F97316]'}`}>{selectedUser.status}</span>
-                        <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-[#FF5330]/10 text-[#FF5330]">{selectedUser.plan}</span>
+                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${selectedUser.status === 'actif' ? 'bg-[#10B981]/10 text-[#10B981]' : 'bg-[#F97316]/10 text-[#F97316]'}`}>
+                          {selectedUser.status}
+                        </span>
+                        <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-[#FF5330]/10 text-[#FF5330]">
+                          {selectedUser.plan}
+                        </span>
                       </div>
                     </div>
                   </div>
-                  <button onClick={() => setSelectedUser(null)} className="p-1 rounded-lg text-[#A1A1AA] cursor-pointer">
+                  <button onClick={() => setSelectedUser(null)} className="p-1 rounded-lg text-[#A1A1AA] hover:text-[#18181B] cursor-pointer">
                     <X className="w-4 h-4" />
                   </button>
                 </div>
 
-                {/* Stats financières de l'utilisateur */}
+                {/* Stats financières réelles de l'utilisateur */}
                 <div className="grid grid-cols-3 gap-2">
                   {[
                     { label: 'Revenus', value: formatCurrency(selectedUser.income), color: 'text-[#10B981]' },
@@ -366,6 +413,7 @@ export const AdminView: React.FC = () => {
 
                 <div className="rounded-xl border border-[#E8E8E8] divide-y divide-[#F0F0F0] overflow-hidden">
                   {[
+                    { label: 'Téléphone', value: selectedUser.phone || 'Non renseigné' },
                     { label: 'Transactions', value: String(selectedUser.transactions) },
                     { label: 'Budget mensuel', value: formatCurrency(selectedUser.budgetTotal) },
                     { label: 'Dernière connexion', value: selectedUser.lastLogin },
@@ -382,12 +430,29 @@ export const AdminView: React.FC = () => {
                 <div>
                   <div className="flex items-center justify-between text-[10px] text-[#6F6F73] mb-1">
                     <span>Utilisation budget</span>
-                    <span className="font-bold text-[#18181B]">{selectedUser.budgetTotal > 0 ? Math.min(100, Math.round((selectedUser.expenses / selectedUser.budgetTotal) * 100)) : 0}%</span>
+                    <span className="font-bold text-[#18181B]">
+                      {selectedUser.budgetTotal > 0 ? Math.min(100, Math.round((selectedUser.expenses / selectedUser.budgetTotal) * 100)) : 0}%
+                    </span>
                   </div>
                   <div className="w-full h-1.5 bg-[#F0F0F0] rounded-full overflow-hidden">
-                    <div className="h-full bg-[#FF5330] rounded-full"
-                      style={{ width: `${selectedUser.budgetTotal > 0 ? Math.min(100, Math.round((selectedUser.expenses / selectedUser.budgetTotal) * 100)) : 0}%` }} />
+                    <div
+                      className="h-full bg-[#FF5330] rounded-full"
+                      style={{
+                        width: `${selectedUser.budgetTotal > 0 ? Math.min(100, Math.round((selectedUser.expenses / selectedUser.budgetTotal) * 100)) : 0}%`,
+                      }}
+                    />
                   </div>
+                </div>
+
+                {/* Action de suppression */}
+                <div className="pt-2 flex justify-end border-t border-[#F0F0F0]">
+                  <button
+                    onClick={() => setUserToDelete(selectedUser)}
+                    className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#EF4444]/10 hover:bg-[#EF4444] text-[#EF4444] hover:text-white text-xs font-bold transition-all cursor-pointer active:scale-95"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    <span>Supprimer cet utilisateur</span>
+                  </button>
                 </div>
               </div>
             )}
@@ -396,48 +461,77 @@ export const AdminView: React.FC = () => {
             <div className="flex items-center gap-2">
               <div className="relative flex-1">
                 <Search className="w-4 h-4 text-[#A1A1AA] absolute left-3 top-1/2 -translate-y-1/2" />
-                <input type="text" value={userSearch} onChange={(e) => setUserSearch(e.target.value)}
-                  placeholder="Rechercher un utilisateur..."
-                  className="w-full pl-9 pr-4 py-2.5 bg-white border border-[#E8E8E8] rounded-xl text-xs font-semibold text-[#18181B] placeholder-[#A1A1AA] focus:outline-none focus:border-[#FF5330]" />
+                <input
+                  type="text"
+                  value={userSearch}
+                  onChange={(e) => setUserSearch(e.target.value)}
+                  placeholder="Rechercher par nom, email ou numéro..."
+                  className="w-full pl-9 pr-4 py-2.5 bg-white border border-[#E8E8E8] rounded-xl text-xs font-semibold text-[#18181B] placeholder-[#A1A1AA] focus:outline-none focus:border-[#FF5330]"
+                />
               </div>
-              <select value={userFilter} onChange={(e) => setUserFilter(e.target.value as 'all' | 'actif' | 'inactif')}
-                className="py-2.5 px-3 bg-white border border-[#E8E8E8] rounded-xl text-xs font-semibold text-[#18181B] focus:outline-none focus:border-[#FF5330] cursor-pointer">
-                <option value="all">Tous</option>
-                <option value="actif">Actifs</option>
-                <option value="inactif">Inactifs</option>
+              <select
+                value={userFilter}
+                onChange={(e) => setUserFilter(e.target.value as 'all' | 'actif' | 'inactif')}
+                className="py-2.5 px-3 bg-white border border-[#E8E8E8] rounded-xl text-xs font-semibold text-[#18181B] focus:outline-none focus:border-[#FF5330] cursor-pointer"
+              >
+                <option value="all">Tous ({ALL_USERS.length})</option>
+                <option value="actif">Actifs ({globalStats.activeUsers})</option>
+                <option value="inactif">Inactifs ({globalStats.inactiveUsers})</option>
               </select>
             </div>
 
-            {/* Liste utilisateurs */}
+            {/* Liste utilisateurs 100% réels */}
             <div className="rounded-xl bg-white border border-[#E8E8E8] divide-y divide-[#F0F0F0] overflow-hidden">
-              {filteredUsers.length === 0
-                ? <div className="p-8 text-center text-xs text-[#6F6F73]">Aucun utilisateur trouvé.</div>
-                : filteredUsers.map((u) => (
-                    <div key={u.id}
-                      onClick={() => setSelectedUser(selectedUser?.id === u.id ? null : u)}
-                      className={`px-3.5 py-3 flex items-center justify-between gap-3 cursor-pointer transition-colors ${selectedUser?.id === u.id ? 'bg-[#FF5330]/5' : 'hover:bg-[#FAFAFA]'}`}>
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="w-8 h-8 rounded-full bg-[#18181B] flex items-center justify-center text-white text-[10px] font-black flex-shrink-0">
-                          {u.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-xs font-bold text-[#18181B] truncate">{u.name}</p>
-                          <p className="text-[10px] text-[#A1A1AA] truncate">{u.email} · {u.lastLogin}</p>
-                        </div>
+              {filteredUsers.length === 0 ? (
+                <div className="p-8 text-center text-xs text-[#6F6F73] space-y-1">
+                  <p className="font-bold text-[#18181B]">Aucun utilisateur trouvé.</p>
+                  <p className="text-[11px] text-[#A1A1AA]">
+                    {userSearch ? 'Aucun utilisateur ne correspond à votre recherche.' : "Les utilisateurs qui s'inscrivent apparaîtront ici automatiquement."}
+                  </p>
+                </div>
+              ) : (
+                filteredUsers.map((u) => (
+                  <div
+                    key={u.id}
+                    onClick={() => setSelectedUser(selectedUser?.id === u.id ? null : u)}
+                    className={`px-3.5 py-3 flex items-center justify-between gap-3 cursor-pointer transition-colors ${
+                      selectedUser?.id === u.id ? 'bg-[#FF5330]/5' : 'hover:bg-[#FAFAFA]'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-8 h-8 rounded-full bg-[#18181B] flex items-center justify-center text-white text-[10px] font-black flex-shrink-0">
+                        {u.name ? u.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : 'U'}
                       </div>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <div className="hidden sm:block text-right">
-                          <p className="text-[10px] font-black text-[#10B981] num-tabular">+{formatCurrency(u.income)}</p>
-                          <p className="text-[10px] text-[#EF4444] num-tabular">-{formatCurrency(u.expenses)}</p>
-                        </div>
-                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${u.status === 'actif' ? 'bg-[#10B981]/10 text-[#10B981]' : 'bg-[#F97316]/10 text-[#F97316]'}`}>
-                          {u.status}
-                        </span>
-                        <ChevronDown className={`w-3.5 h-3.5 text-[#A1A1AA] transition-transform ${selectedUser?.id === u.id ? 'rotate-180' : ''}`} />
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-[#18181B] truncate">{u.name}</p>
+                        <p className="text-[10px] text-[#A1A1AA] truncate">
+                          {u.email} {u.phone ? `· ${u.phone}` : ''} · {u.lastLogin}
+                        </p>
                       </div>
                     </div>
-                  ))
-              }
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <div className="hidden sm:block text-right">
+                        <p className="text-[10px] font-black text-[#10B981] num-tabular">+{formatCurrency(u.income)}</p>
+                        <p className="text-[10px] text-[#EF4444] num-tabular">-{formatCurrency(u.expenses)}</p>
+                      </div>
+                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${u.status === 'actif' ? 'bg-[#10B981]/10 text-[#10B981]' : 'bg-[#F97316]/10 text-[#F97316]'}`}>
+                        {u.status}
+                      </span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setUserToDelete(u);
+                        }}
+                        className="p-1.5 rounded-lg text-[#A1A1AA] hover:text-[#EF4444] hover:bg-[#EF4444]/10 transition-colors cursor-pointer"
+                        title="Supprimer l'utilisateur"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                      <ChevronDown className={`w-3.5 h-3.5 text-[#A1A1AA] transition-transform ${selectedUser?.id === u.id ? 'rotate-180' : ''}`} />
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         );
@@ -671,8 +765,8 @@ export const AdminView: React.FC = () => {
                   <span className="text-[10px] text-[#A1A1AA] flex-shrink-0">{t.date}</span>
                 </div>
               ))}
-              {/* Logs simulés pour les autres utilisateurs */}
-              {SIMULATED_USERS.slice(0, 6).map((u, i) => (
+              {/* Logs pour les autres utilisateurs */}
+              {ALL_USERS.filter((u) => u.email !== userProfile.email).map((u, i) => (
                 <div key={`user-${i}`} className="px-3.5 py-2.5 flex items-start gap-3">
                   <div className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 mt-0.5 bg-[#3B82F6]/10 text-[#3B82F6]">
                     <Users className="w-3 h-3" />
@@ -939,6 +1033,54 @@ export const AdminView: React.FC = () => {
         <main className="flex-1 p-4 sm:p-6 max-w-5xl w-full mx-auto pb-24 lg:pb-12">
           {renderSection()}
         </main>
+
+        {/* Modal de confirmation de suppression d'utilisateur */}
+        {userToDelete && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-150">
+            <div className="bg-white rounded-2xl max-w-sm w-full p-5 space-y-4 shadow-2xl border border-[#E8E8E8] animate-in zoom-in-95 duration-150">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-[#EF4444]/10 flex items-center justify-center text-[#EF4444] flex-shrink-0">
+                  <Trash2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-[#18181B]">Supprimer l'utilisateur ?</h3>
+                  <p className="text-xs text-[#6F6F73]">Action d'administration irréversible</p>
+                </div>
+              </div>
+
+              <p className="text-xs text-[#6F6F73] leading-relaxed">
+                Êtes-vous certain de vouloir supprimer définitivement le compte de{' '}
+                <strong className="text-[#18181B]">{userToDelete.name}</strong> ({userToDelete.email}) ?
+                Toutes ses données associées seront supprimées.
+              </p>
+
+              <div className="flex items-center gap-2 pt-2">
+                <button
+                  onClick={() => setUserToDelete(null)}
+                  disabled={deleteLoading}
+                  className="flex-1 py-2.5 rounded-xl bg-[#F7F7F7] hover:bg-[#E8E8E8] text-[#18181B] font-bold text-xs transition-colors cursor-pointer"
+                >
+                  Annuler
+                </button>
+                <button
+                  onClick={handleConfirmDelete}
+                  disabled={deleteLoading}
+                  className="flex-1 py-2.5 rounded-xl bg-[#EF4444] hover:bg-[#DC2626] text-white font-bold text-xs shadow-sm transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  {deleteLoading ? 'Suppression...' : 'Supprimer'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Notification toast d'action admin */}
+        {actionFeedback && (
+          <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-3 bg-[#18181B] text-white text-xs font-bold rounded-xl shadow-xl animate-in slide-in-from-bottom-3 duration-200">
+            <CheckCircle2 className="w-4 h-4 text-[#10B981]" />
+            <span>{actionFeedback}</span>
+          </div>
+        )}
       </div>
     </div>
   );

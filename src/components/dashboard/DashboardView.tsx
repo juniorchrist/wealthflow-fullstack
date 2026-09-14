@@ -45,6 +45,7 @@ export const DashboardView: React.FC = () => {
     setActiveTab,
     setIsNewTransactionModalOpen,
     toggleGoalCheckbox,
+    lockApp,
   } = useWealth();
 
   const [isBalanceHidden, setIsBalanceHidden] = useState(false);
@@ -138,14 +139,9 @@ export const DashboardView: React.FC = () => {
 
             {/* Cadenas de verrouillage */}
             <button
-              onClick={() => {
-                if (window.confirm('Voulez-vous verrouiller votre espace ?')) {
-                  // Fonction lockApp à ajouter dans le context si nécessaire
-                  setActiveTab('dashboard');
-                }
-              }}
-              className="w-10 h-10 rounded-full bg-[#F7F7F7] flex items-center justify-center cursor-pointer active:scale-95 transition-transform"
-              title="Verrouiller"
+              onClick={lockApp}
+              className="w-10 h-10 rounded-full bg-[#F7F7F7] flex items-center justify-center cursor-pointer active:scale-95 hover:bg-[#E8E8E8] transition-all"
+              title="Verrouiller l'espace"
             >
               <Lock className="w-5 h-5 text-[#52525B]" />
             </button>

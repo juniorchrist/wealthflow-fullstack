@@ -26,6 +26,8 @@ export const Sidebar: React.FC = () => {
     userProfile,
     setIsNewTransactionModalOpen,
     lockApp,
+    financialHealthScore,
+    financialHealthMessage,
   } = useWealth();
 
   const unreadCount = notifications.filter((n) => !n.read).length;
@@ -163,23 +165,38 @@ export const Sidebar: React.FC = () => {
         ))}
       </nav>
 
-      {/* Financial Health / Progress Widget */}
+      {/* Financial Health / Progress Widget Dynamique */}
       <div className="mt-3 pt-3 border-t border-[#E8E8E8]">
-        <div className="p-2.5 rounded-xl bg-[#F7F7F7] border border-[#E8E8E8] space-y-1.5">
+        <button
+          onClick={() => setActiveTab('strategy')}
+          className="w-full text-left p-2.5 rounded-xl bg-[#F7F7F7] hover:bg-[#EFEFEF] active:scale-[0.99] border border-[#E8E8E8] space-y-1.5 transition-all cursor-pointer group"
+          title="Voir le diagnostic stratégique complet"
+        >
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold text-[#18181B] flex items-center space-x-1">
+            <span className="text-[11px] font-semibold text-[#18181B] flex items-center space-x-1 group-hover:text-[#FF5330] transition-colors">
               <Sparkles className="w-3 h-3 text-[#FF5330]" />
               <span>Santé financière</span>
             </span>
-            <span className="text-[11px] font-bold text-[#FF5330] num-tabular">78%</span>
+            <span className="text-[11px] font-black text-[#FF5330] num-tabular">
+              {financialHealthScore}%
+            </span>
           </div>
           <div className="w-full h-1.5 bg-[#E8E8E8] rounded-full overflow-hidden">
-            <div className="h-full bg-[#FF5330] rounded-full transition-all duration-500" style={{ width: '78%' }} />
+            <div
+              className={`h-full rounded-full transition-all duration-700 ease-out ${
+                financialHealthScore >= 75
+                  ? 'bg-[#10B981]'
+                  : financialHealthScore >= 50
+                  ? 'bg-[#FF5330]'
+                  : 'bg-[#EF4444]'
+              }`}
+              style={{ width: `${financialHealthScore}%` }}
+            />
           </div>
-          <p className="text-[10px] text-[#6F6F73] font-medium">
-            Vous êtes sur la bonne voie !
+          <p className="text-[10px] text-[#6F6F73] font-medium leading-tight">
+            {financialHealthMessage}
           </p>
-        </div>
+        </button>
       </div>
     </aside>
   );

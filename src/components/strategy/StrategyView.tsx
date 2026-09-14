@@ -17,11 +17,10 @@ import {
 import { useWealth } from '../../context/WealthContext';
 
 export const StrategyView: React.FC = () => {
-  const { totalIncome, totalExpenses, totalSaved, savingsRate, formatCurrency, setActiveTab } =
+  const { totalIncome, totalExpenses, totalSaved, savingsRate, formatCurrency, setActiveTab, financialHealthScore, financialHealthMessage } =
     useWealth();
 
-  // Financial Health Calculation
-  const healthScore = Math.min(100, Math.max(50, Math.round(savingsRate * 1.5 + 35)));
+  const healthScore = financialHealthScore;
 
   return (
     <div id="strategy-view" className="space-y-4 sm:space-y-5 animate-in fade-in duration-200 px-4 py-4 pb-24 lg:p-0">

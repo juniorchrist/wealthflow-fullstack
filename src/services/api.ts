@@ -5,7 +5,7 @@
 // Récupérer l'URL du backend depuis les variables d'environnement Vite
 // Priorité: VITE_API_URL > VITE_BACKEND_URL > https://wealthflow-fullstack-2.onrender.com/api
 const getApiBaseUrl = (): string => {
-  const envUrl = import.meta.env.VITE_API_URL || import.meta.env.VITE_BACKEND_URL;
+  const envUrl = (import.meta as any).env?.VITE_API_URL || (import.meta as any).env?.VITE_BACKEND_URL;
   if (envUrl) {
     return envUrl.replace(/\/+$/, '');
   }
@@ -335,6 +335,19 @@ export const api = {
     disablePin: async () => {
       return apiRequest<any>('/settings/pin/disable', {
         method: 'POST',
+      });
+    },
+  },
+
+  // Admin
+  admin: {
+    getUsers: async () => {
+      return apiRequest<any[]>('/admin/users');
+    },
+
+    deleteUser: async (id: string) => {
+      return apiRequest<any>(`/admin/users/${id}`, {
+        method: 'DELETE',
       });
     },
   },

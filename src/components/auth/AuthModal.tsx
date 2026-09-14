@@ -6,6 +6,7 @@ import {
   EyeOff,
   Lock,
   Mail,
+  Phone,
   User,
   X,
 } from 'lucide-react';
@@ -26,6 +27,7 @@ export const AuthModal: React.FC = () => {
   const [prenom, setPrenom] = useState('');
   const [nom, setNom] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -38,6 +40,7 @@ export const AuthModal: React.FC = () => {
     setPrenom('');
     setNom('');
     setEmail('');
+    setPhone('');
     setPassword('');
     setErrorMessage(null);
     setIsLoading(false);
@@ -114,16 +117,20 @@ export const AuthModal: React.FC = () => {
         nom: cleanNom,
         email: cleanEmail,
         password: password,
+        numero: phone.trim() || undefined,
         currency: 'FCFA',
       });
 
       if (res.success && res.data?.user) {
         const u = res.data.user;
         const fullName = `${u.prenom || ''} ${u.nom || ''}`.trim();
+        // Le mot de passe d'inscription sert aussi de code de déverrouillage
         registerUser({
           name: fullName,
           email: u.email,
           currency: u.currency || 'FCFA',
+          password: password,
+          phone: phone.trim() || undefined,
         });
         handleClose();
       } else {
@@ -207,6 +214,23 @@ export const AuthModal: React.FC = () => {
                       placeholder="Kouassi"
                     />
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* Numéro de téléphone (inscription uniquement) */}
+            {authModalMode === 'register' && (
+              <div>
+                <label className="text-xs font-bold text-[#18181B] block mb-1.5">Numéro de téléphone <span className="text-[#A1A1AA] font-normal">(optionnel)</span></label>
+                <div className="relative">
+                  <Phone className="w-4 h-4 text-[#A1A1AA] absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="tel"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    className="w-full pl-9 pr-4 py-2.5 bg-[#FAFAFA] border border-[#E8E8E8] rounded-xl text-xs sm:text-sm text-[#18181B] font-semibold focus:outline-none focus:border-[#FF5330] transition-colors"
+                    placeholder="+225 07 00 00 00"
+                  />
                 </div>
               </div>
             )}

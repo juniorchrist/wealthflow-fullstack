@@ -8,6 +8,7 @@ import budgetsRoutes from './budgets.routes';
 import notificationsRoutes from './notifications.routes';
 import settingsRoutes from './settings.routes';
 import analyticsRoutes from './analytics.routes';
+import adminRoutes from './admin.routes';
 
 const router = Router();
 
@@ -62,5 +63,8 @@ router.use('/settings', settingsRoutes);
 
 // Analytics
 router.use('/analytics', analyticsRoutes);
+
+// Admin
+router.use('/admin', adminRoutes);
 
 export default router;

@@ -53,6 +53,7 @@ export interface NotificationItem {
 }
 
 export interface UserProfile {
+  id?: string;
   name: string;
   email: string;
   phone: string;
@@ -66,6 +67,23 @@ export interface UserProfile {
   isPinEnabled: boolean;
   isLocked: boolean;
   autoLockMinutes: number;
+  createdAt?: string;
+}
+
+export interface AdminUser {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  plan: string;
+  status: 'actif' | 'inactif';
+  lastLogin: string;
+  joinDate: string;
+  income: number;
+  expenses: number;
+  savings: number;
+  transactions: number;
+  budgetTotal: number;
 }
 
 export interface MonthlyChartData {
