@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ArrowRight,
   BarChart3,
@@ -8,7 +8,9 @@ import {
   KeyRound,
   List,
   Lock,
+  Mail,
   Menu,
+  Phone,
   PiggyBank,
   Plus,
   Shield,
@@ -26,6 +28,18 @@ export const LandingView: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [adminLockHovered, setAdminLockHovered] = useState(false);
   const [adminLoginOpen, setAdminLoginOpen] = useState(false);
+  const [contactModalOpen, setContactModalOpen] = useState(false);
+  const [supportEmail, setSupportEmail] = useState('support@wealthflow.app');
+
+  useEffect(() => {
+    import('../../services/api').then(({ api }) => {
+      api.system.getSettings().then((res) => {
+        if (res.success && res.data?.supportEmail) {
+          setSupportEmail(res.data.supportEmail);
+        }
+      }).catch(() => {});
+    });
+  }, []);
 
   const handleOpenAuth = (mode: 'login' | 'register') => {
     setAuthModalMode(mode);
@@ -164,6 +178,12 @@ export const LandingView: React.FC = () => {
               >
                 Sécurité
               </a>
+              <button
+                onClick={() => { setMobileMenuOpen(false); setContactModalOpen(true); }}
+                className="block w-full text-left px-3 py-2.5 text-sm font-semibold text-[#18181B] rounded-lg transition-colors cursor-pointer"
+              >
+                Confidentialité &amp; Contact
+              </button>
               <div className="pt-3 border-t border-[#F0F0F0] space-y-2">
                 <button
                   onClick={() => handleOpenAuth('login')}
@@ -507,7 +527,14 @@ export const LandingView: React.FC = () => {
               <h4 className="text-xs font-bold text-[#18181B] uppercase tracking-wider mb-3">Aide</h4>
               <ul className="space-y-2">
                 <li><span className="text-xs text-[#6F6F73]">Centre d'aide</span></li>
-                <li><span className="text-xs text-[#6F6F73]">Contact</span></li>
+                <li>
+                  <button
+                    onClick={() => setContactModalOpen(true)}
+                    className="text-xs text-[#6F6F73] hover:text-[#FF5330] transition-colors cursor-pointer"
+                  >
+                    Contact
+                  </button>
+                </li>
               </ul>
             </div>
           </div>
@@ -550,6 +577,95 @@ export const LandingView: React.FC = () => {
       {/* Modal connexion admin */}
       {adminLoginOpen && (
         <AdminLoginModal onClose={() => setAdminLoginOpen(false)} />
+      )}
+
+      {/* ===== MODAL CONTACT ===== */}
+      {contactModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          onClick={() => setContactModalOpen(false)}
+        >
+          {/* Backdrop */}
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+
+          {/* Card */}
+          <div
+            className="relative z-10 w-full max-w-md bg-white rounded-3xl shadow-2xl border border-[#E8E8E8] p-6 sm:p-8 space-y-5 animate-in fade-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-[#FF5330] flex items-center justify-center shadow-sm">
+                  <Phone className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-black text-[#18181B] tracking-tight">Nous contacter</h2>
+                  <p className="text-xs text-[#6F6F73]">Support WealthFlow — disponible 7j/7</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setContactModalOpen(false)}
+                className="w-8 h-8 rounded-xl bg-[#F7F7F7] hover:bg-[#EAEAEA] flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4 text-[#52525B]" />
+              </button>
+            </div>
+
+            {/* Divider */}
+            <div className="border-t border-[#F0F0F0]" />
+
+            {/* Contacts */}
+            <div className="space-y-3">
+              {/* Email */}
+              <a
+                href={`mailto:${supportEmail}`}
+                className="flex items-center gap-4 p-4 rounded-2xl bg-[#F7F7F7] hover:bg-[#EAEAEA] border border-[#E8E8E8] transition-colors group"
+              >
+                <div className="w-10 h-10 rounded-xl bg-white border border-[#E8E8E8] flex items-center justify-center shadow-sm flex-shrink-0">
+                  <Mail className="w-5 h-5 text-[#FF5330]" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[11px] font-bold text-[#A1A1AA] uppercase tracking-wider">Email</p>
+                  <p className="text-sm font-bold text-[#18181B] group-hover:text-[#FF5330] transition-colors truncate">{supportEmail}</p>
+                </div>
+              </a>
+
+              {/* Téléphone 1 */}
+              <a
+                href="tel:0566472284"
+                className="flex items-center gap-4 p-4 rounded-2xl bg-[#F7F7F7] hover:bg-[#EAEAEA] border border-[#E8E8E8] transition-colors group"
+              >
+                <div className="w-10 h-10 rounded-xl bg-white border border-[#E8E8E8] flex items-center justify-center shadow-sm flex-shrink-0">
+                  <Phone className="w-5 h-5 text-[#10B981]" />
+                </div>
+                <div>
+                  <p className="text-[11px] font-bold text-[#A1A1AA] uppercase tracking-wider">Téléphone 1</p>
+                  <p className="text-sm font-bold text-[#18181B] group-hover:text-[#FF5330] transition-colors">05 66 4 72 84</p>
+                </div>
+              </a>
+
+              {/* Téléphone 2 */}
+              <a
+                href="tel:0575597126"
+                className="flex items-center gap-4 p-4 rounded-2xl bg-[#F7F7F7] hover:bg-[#EAEAEA] border border-[#E8E8E8] transition-colors group"
+              >
+                <div className="w-10 h-10 rounded-xl bg-white border border-[#E8E8E8] flex items-center justify-center shadow-sm flex-shrink-0">
+                  <Phone className="w-5 h-5 text-[#10B981]" />
+                </div>
+                <div>
+                  <p className="text-[11px] font-bold text-[#A1A1AA] uppercase tracking-wider">Téléphone 2</p>
+                  <p className="text-sm font-bold text-[#18181B] group-hover:text-[#FF5330] transition-colors">0575597126</p>
+                </div>
+              </a>
+            </div>
+
+            {/* Footer note */}
+            <p className="text-center text-[11px] text-[#A1A1AA]">
+              Notre équipe répond généralement en moins de 24h.
+            </p>
+          </div>
+        </div>
       )}
     </div>
   );

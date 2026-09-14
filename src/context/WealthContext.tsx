@@ -48,6 +48,7 @@ interface WealthContextType {
 
   // Notifications
   notifications: NotificationItem[];
+  addNotification: (notif: Omit<NotificationItem, 'id'>) => void;
   markNotificationAsRead: (id: string) => void;
   markAllNotificationsAsRead: () => void;
   deleteNotification: (id: string) => void;
@@ -864,6 +865,14 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   // Notification CRUD connecté à l'API Backend
+  const addNotification = (notif: Omit<NotificationItem, 'id'>) => {
+    const newNotif: NotificationItem = {
+      ...notif,
+      id: `sys-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    };
+    setNotifications((prev) => [newNotif, ...prev]);
+  };
+
   const markNotificationAsRead = async (id: string) => {
     setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
     try {
@@ -998,6 +1007,7 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         updateCategory,
         deleteCategory,
         notifications,
+        addNotification,
         markNotificationAsRead,
         markAllNotificationsAsRead,
         deleteNotification,

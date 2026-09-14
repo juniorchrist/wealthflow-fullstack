@@ -26,7 +26,7 @@ import { Sidebar } from './Sidebar';
 import { api } from '../../services/api';
 
 export const AppShell: React.FC = () => {
-  const { activeTab, isLocked, isLoading, finishLoading, loadingMessage, currentRoute, isAuthenticated, isAdminAuthenticated, setActiveTab } = useWealth();
+  const { activeTab, isLocked, isLoading, finishLoading, loadingMessage, currentRoute, isAuthenticated, isAdminAuthenticated, setActiveTab, addNotification } = useWealth();
 
   // Maintenance Mode — récupéré depuis l'API backend au chargement
   const [isMaintenanceMode, setIsMaintenanceMode] = useState(false);
@@ -36,8 +36,29 @@ export const AppShell: React.FC = () => {
   useEffect(() => {
     api.system.getSettings().then((res) => {
       if (res.success && res.data) {
-        setIsMaintenanceMode(Boolean(res.data.maintenanceMode));
-        setMaintenanceMessage(res.data.maintenanceMessage || '');
+        const maintenance = Boolean(res.data.maintenanceMode);
+        const msg = res.data.maintenanceMessage || '';
+        setIsMaintenanceMode(maintenance);
+        setMaintenanceMessage(msg);
+
+        // Pousser une notification dans le centre si la maintenance est active
+        if (maintenance) {
+          const flagKey = 'wf_maintenance_notif_sent';
+          const alreadySent = localStorage.getItem(flagKey);
+          if (!alreadySent) {
+            addNotification({
+              title: '🔧 Maintenance en cours',
+              message: msg || "WealthFlow est en cours de maintenance. Nous revenons très prochainement !",
+              date: new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' }),
+              read: false,
+              type: 'warning',
+            });
+            localStorage.setItem(flagKey, '1');
+          }
+        } else {
+          // Réinitialiser le flag quand la maintenance est levée
+          localStorage.removeItem('wf_maintenance_notif_sent');
+        }
       }
     }).catch(() => {
       // En cas d'erreur réseau, ne pas bloquer le site

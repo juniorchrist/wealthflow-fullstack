@@ -4,7 +4,7 @@ import { useWealth } from '../../context/WealthContext';
 import { api } from '../../services/api';
 
 export const LegalView: React.FC = () => {
-  const { setActiveTab, isAuthenticated } = useWealth();
+  const { setActiveTab, isAuthenticated, addNotification } = useWealth();
 
   const [activeTabLegal, setActiveTabLegal] = useState<'terms' | 'privacy'>('terms');
   const [terms, setTerms] = useState<string>('');
@@ -17,16 +17,30 @@ export const LegalView: React.FC = () => {
     api.system.getSettings().then((res) => {
       if (!isMounted) return;
       if (res.success && res.data) {
-        setTerms(res.data.termsOfService || '');
-        setPrivacy(res.data.privacyPolicy || '');
+        const termsContent = res.data.termsOfService || '';
+        const privacyContent = res.data.privacyPolicy || '';
+        setTerms(termsContent);
+        setPrivacy(privacyContent);
         if (res.data.updatedAt) {
-          setUpdatedAt(
-            new Date(res.data.updatedAt).toLocaleDateString('fr-FR', {
-              day: '2-digit',
-              month: 'long',
-              year: 'numeric',
-            })
-          );
+          const formattedDate = new Date(res.data.updatedAt).toLocaleDateString('fr-FR', {
+            day: '2-digit',
+            month: 'long',
+            year: 'numeric',
+          });
+          setUpdatedAt(formattedDate);
+
+          // Pousser une notification unique par version des documents légaux
+          const flagKey = `wf_legal_notif_${res.data.updatedAt}`;
+          if (!localStorage.getItem(flagKey) && (termsContent || privacyContent)) {
+            addNotification({
+              title: '📜 Documents légaux mis à jour',
+              message: `Les Conditions Générales d'Utilisation (CGU), la Politique de Confidentialité et le RGPD ont été mis à jour le ${formattedDate}. Consultez-les dans la section Légal.`,
+              date: new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' }),
+              read: false,
+              type: 'info',
+            });
+            localStorage.setItem(flagKey, '1');
+          }
         }
       }
       setLoading(false);
