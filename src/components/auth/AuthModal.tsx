@@ -69,6 +69,7 @@ export const AuthModal: React.FC = () => {
         login({
           name: fullName,
           email: u.email,
+          pinCode: password,
         });
         handleClose();
       } else {
@@ -104,8 +105,8 @@ export const AuthModal: React.FC = () => {
       return;
     }
 
-    if (!password || password.length < 4) {
-      setErrorMessage('Le mot de passe doit contenir au moins 4 caractères');
+    if (!password || password.length !== 4) {
+      setErrorMessage('Le code secret doit comporter exactement 4 chiffres');
       return;
     }
 
@@ -251,18 +252,29 @@ export const AuthModal: React.FC = () => {
             </div>
 
             <div>
-              <label className="text-xs font-bold text-[#18181B] block mb-1.5">
-                {authModalMode === 'login' ? 'Mot de passe' : 'Mot de passe (minimum 6 caractères)'}
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-bold text-[#18181B] block">
+                  {authModalMode === 'login' ? 'Code secret (4 chiffres)' : 'Code secret de sécurité (4 chiffres)'}
+                </label>
+                <span className="text-[10px] font-bold text-[#FF5330] bg-[#FF5330]/10 px-1.5 py-0.5 rounded">
+                  4 chiffres
+                </span>
+              </div>
               <div className="relative">
                 <Lock className="w-4 h-4 text-[#A1A1AA] absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type={showPassword ? 'text' : 'password'}
                   required
+                  maxLength={4}
+                  inputMode="numeric"
+                  pattern="[0-9]{4}"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-9 pr-10 py-2.5 bg-[#FAFAFA] border border-[#E8E8E8] rounded-xl text-xs sm:text-sm text-[#18181B] font-semibold focus:outline-none focus:border-[#FF5330] transition-colors"
-                  placeholder={authModalMode === 'register' ? 'Minimum 6 caractères' : '••••••••'}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/\D/g, '').slice(0, 4);
+                    setPassword(val);
+                  }}
+                  className="w-full pl-9 pr-10 py-2.5 bg-[#FAFAFA] border border-[#E8E8E8] rounded-xl text-xs sm:text-sm text-[#18181B] font-semibold tracking-widest focus:outline-none focus:border-[#FF5330] transition-colors"
+                  placeholder="•••• (4 chiffres)"
                 />
                 <button
                   type="button"
@@ -273,7 +285,9 @@ export const AuthModal: React.FC = () => {
                 </button>
               </div>
               {authModalMode === 'register' && (
-                <p className="text-[10px] text-[#A1A1AA] mt-1">Au moins 6 caractères (ou code PIN de 4 chiffres)</p>
+                <p className="text-[10px] text-[#6F6F73] mt-1">
+                  Ce code à 4 chiffres servira à vous connecter et à déverrouiller l'application.
+                </p>
               )}
             </div>
 

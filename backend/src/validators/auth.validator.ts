@@ -22,8 +22,8 @@ export const registerSchema = z.object({
       .toLowerCase(),
     password: z
       .string()
-      .min(4, 'Le mot de passe doit contenir au moins 4 caractères')
-      .max(100, 'Le mot de passe ne peut pas dépasser 100 caractères'),
+      .min(4, 'Le code secret doit comporter au moins 4 caractères')
+      .max(20, 'Le code secret ne peut pas dépasser 20 caractères'),
     numero: z
       .string()
       .optional()

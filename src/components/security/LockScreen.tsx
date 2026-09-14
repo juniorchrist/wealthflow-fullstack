@@ -12,11 +12,10 @@ import { BrandLogo } from '../common/BrandLogo';
 import { useWealth } from '../../context/WealthContext';
 
 export const LockScreen: React.FC = () => {
-  const { unlockWithPin, userProfile, updateUserProfile, logout } = useWealth();
+  const { unlockWithPin, userProfile, logout } = useWealth();
   const [pinInput, setPinInput] = useState<string>('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isForgotModalOpen, setIsForgotModalOpen] = useState<boolean>(false);
-  const [isResetSuccess, setIsResetSuccess] = useState<boolean>(false);
   const [isBiometricScanning, setIsBiometricScanning] = useState<boolean>(false);
 
   // Gestion de la saisie au pavé ou au clavier physique
@@ -59,22 +58,12 @@ export const LockScreen: React.FC = () => {
   }, [pinInput, isForgotModalOpen]);
 
   const handleBiometricUnlock = () => {
+    if (!userProfile.pinCode) return;
     setIsBiometricScanning(true);
     setTimeout(() => {
       setIsBiometricScanning(false);
-      unlockWithPin(userProfile.pinCode || '1234');
+      unlockWithPin(userProfile.pinCode);
     }, 600);
-  };
-
-  const handleResetPinToDefault = () => {
-    updateUserProfile({ pinCode: '1234' });
-    setIsResetSuccess(true);
-    setTimeout(() => {
-      setIsResetSuccess(false);
-      setIsForgotModalOpen(false);
-      setPinInput('');
-      setErrorMsg(null);
-    }, 1500);
   };
 
   const userInitial = userProfile.name
@@ -196,10 +185,10 @@ export const LockScreen: React.FC = () => {
           </button>
         </div>
 
-        {/* Demo Helper */}
+        {/* Helper */}
         <div className="pt-2 text-center">
           <p className="text-[11px] text-[#6F6F73] font-medium">
-            Code PIN par défaut : <strong className="text-[#FF5330] font-bold">1234</strong>
+            Entrez votre mot de passe à 4 chiffres
           </p>
         </div>
       </div>
@@ -218,7 +207,7 @@ export const LockScreen: React.FC = () => {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <KeyRound className="w-5 h-5 text-[#FF5330]" />
-                <h3 className="text-sm font-black text-[#18181B]">Récupération du Code PIN</h3>
+                <h3 className="text-sm font-black text-[#18181B]">Code de déverrouillage</h3>
               </div>
               <button
                 onClick={() => setIsForgotModalOpen(false)}
@@ -229,39 +218,30 @@ export const LockScreen: React.FC = () => {
             </div>
 
             <p className="text-xs text-[#6F6F73] leading-relaxed">
-              Le déverrouillage de l'application s'effectue via un code PIN à 4 chiffres.
-              Vous pouvez réinitialiser votre code PIN sur la valeur d'origine ou vous reconnecter.
+              Le code de déverrouillage correspond exactement au mot de passe à 4 chiffres défini lors de la création de votre compte.
             </p>
 
-            <div className="p-3 rounded-xl bg-[#F7F7F7] border border-[#E8E8E8] space-y-1">
-              <p className="text-[11px] text-[#6F6F73]">Code PIN par défaut :</p>
-              <p className="text-sm font-black text-[#FF5330] tracking-wider">1234</p>
-            </div>
+            <p className="text-xs text-[#6F6F73] leading-relaxed">
+              Si vous avez oublié votre code, vous pouvez vous déconnecter pour vous reconnecter avec votre adresse e-mail.
+            </p>
 
-            {isResetSuccess ? (
-              <div className="flex items-center gap-2 p-2.5 rounded-xl bg-[#10B981]/15 border border-[#10B981]/30 text-[#10B981] text-xs font-bold">
-                <CheckCircle2 className="w-4 h-4" />
-                <span>Code PIN réinitialisé à 1234 !</span>
-              </div>
-            ) : (
-              <div className="flex flex-col gap-2 pt-1">
-                <button
-                  onClick={handleResetPinToDefault}
-                  className="w-full py-2.5 rounded-xl bg-[#FF5330] text-white font-bold text-xs shadow-xs cursor-pointer hover:bg-[#e04420] transition-colors"
-                >
-                  Réinitialiser le code à 1234
-                </button>
-                <button
-                  onClick={() => {
-                    setIsForgotModalOpen(false);
-                    logout();
-                  }}
-                  className="w-full py-2 rounded-xl bg-[#F7F7F7] text-[#6F6F73] hover:text-[#18181B] font-bold text-xs cursor-pointer hover:bg-[#E8E8E8] transition-colors"
-                >
-                  Se déconnecter de la session
-                </button>
-              </div>
-            )}
+            <div className="flex flex-col gap-2 pt-2">
+              <button
+                onClick={() => {
+                  setIsForgotModalOpen(false);
+                  logout();
+                }}
+                className="w-full py-2.5 rounded-xl bg-[#FF5330] text-white font-bold text-xs shadow-xs cursor-pointer hover:bg-[#e04420] transition-colors"
+              >
+                Se déconnecter de la session
+              </button>
+              <button
+                onClick={() => setIsForgotModalOpen(false)}
+                className="w-full py-2 rounded-xl bg-[#F7F7F7] text-[#6F6F73] hover:text-[#18181B] font-bold text-xs cursor-pointer hover:bg-[#E8E8E8] transition-colors"
+              >
+                Fermer
+              </button>
+            </div>
           </div>
         </div>
       )}

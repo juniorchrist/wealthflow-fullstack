@@ -21,7 +21,7 @@ interface WealthContextType {
   isAuthenticated: boolean;
   currentRoute: AppRoute;
   setCurrentRoute: (route: AppRoute) => void;
-  login: (credentials?: { email?: string; name?: string }) => void;
+  login: (credentials?: { email?: string; name?: string; pinCode?: string }) => void;
   registerUser: (data: { name: string; email: string; currency: string; password?: string; phone?: string }) => void;
   logout: () => void;
   
@@ -342,13 +342,15 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, [isAuthenticated, refreshRemoteData]);
 
   // Auth methods
-  const login = (credentials?: { email?: string; name?: string }) => {
+  const login = (credentials?: { email?: string; name?: string; pinCode?: string }) => {
     const updated = {
       ...userProfile,
       name: credentials?.name || userProfile.name,
       email: credentials?.email || userProfile.email,
+      pinCode: credentials?.pinCode || userProfile.pinCode,
+      isPinEnabled: Boolean(credentials?.pinCode || userProfile.pinCode),
     };
-    if (credentials?.email || credentials?.name) {
+    if (credentials?.email || credentials?.name || credentials?.pinCode) {
       setUserProfile(updated);
       localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(updated));
     }
@@ -361,18 +363,14 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const registerUser = (data: { name: string; email: string; currency: string; password?: string; phone?: string }) => {
     const formattedJoinDate = new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
+    const userPin = data.password ? data.password.trim() : (userProfile.pinCode || '');
     const newProfile: UserProfile = {
       ...userProfile,
       name: data.name || userProfile.name,
       email: data.email || userProfile.email,
       currency: data.currency || userProfile.currency,
-      // Le code de déverrouillage prend 4 chiffres (ou 1234 par défaut)
-      pinCode: (data.password && /^\d{4}$/.test(data.password))
-        ? data.password
-        : (userProfile.pinCode && /^\d{4}$/.test(userProfile.pinCode))
-          ? userProfile.pinCode
-          : '1234',
-      isPinEnabled: true,
+      pinCode: userPin,
+      isPinEnabled: Boolean(userPin),
       phone: data.phone || userProfile.phone,
       createdAt: new Date().toISOString(),
     };
@@ -899,11 +897,15 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const unlockWithPin = (pin: string): boolean => {
-    const valid =
-      !userProfile.isPinEnabled ||
-      pin === userProfile.pinCode ||
-      (!userProfile.pinCode && pin === '1234') ||
-      pin === '1234';
+    // Si la protection par PIN/code n'est pas activée, déverrouiller
+    if (!userProfile.isPinEnabled) {
+      setIsLocked(false);
+      if (previousTab) setActiveTab(previousTab);
+      return true;
+    }
+
+    // Valide uniquement et strictement si le code correspond au mot de passe de compte
+    const valid = Boolean(userProfile.pinCode && pin === userProfile.pinCode);
     if (valid) {
       setIsLocked(false);
       if (previousTab) {
@@ -916,13 +918,6 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const lockApp = () => {
     setPreviousTab(activeTab);
-    if (!userProfile.pinCode) {
-      setUserProfile((prev) => ({
-        ...prev,
-        pinCode: prev.pinCode || '1234',
-        isPinEnabled: true,
-      }));
-    }
     setIsLocked(true);
   };
 
