@@ -13,6 +13,7 @@ import {
   ShieldCheck,
   Sparkles,
   Tags,
+  Headphones,
 } from 'lucide-react';
 import { useWealth } from '../../context/WealthContext';
 import { ActiveTab } from '../../types';
@@ -64,6 +65,7 @@ export const Sidebar: React.FC = () => {
         { id: 'notifications', label: 'Notifications', icon: Bell, badge: unreadCount > 0 ? unreadCount : undefined },
         { id: 'settings', label: 'Paramètres', icon: Settings },
         { id: 'security', label: 'Sécurité & PIN', icon: ShieldCheck },
+        { id: 'help-center', label: "Centre d'aide & Support", icon: Headphones },
       ],
     },
   ];
@@ -197,6 +199,16 @@ export const Sidebar: React.FC = () => {
             {financialHealthMessage}
           </p>
         </button>
+
+        <div className="pt-2 flex items-center justify-between text-[10px] text-[#A1A1AA] px-1">
+          <button
+            onClick={() => setActiveTab('legal')}
+            className="hover:text-[#FF5330] transition-colors cursor-pointer"
+          >
+            CGU & Confidentialité
+          </button>
+          <span>v2.1</span>
+        </div>
       </div>
     </aside>
   );

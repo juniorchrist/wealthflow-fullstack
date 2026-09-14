@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useWealth } from '../../context/WealthContext';
 import { AdminView } from '../admin/AdminView';
 import { AnalyticsView } from '../analytics/AnalyticsView';
@@ -7,7 +7,10 @@ import { BudgetView } from '../budget/BudgetView';
 import { CategoriesView } from '../categories/CategoriesView';
 import { LoadingScreen } from '../common/LoadingScreen';
 import { DashboardView } from '../dashboard/DashboardView';
+import { HelpCenterView } from '../help/HelpCenterView';
 import { LandingView } from '../landing/LandingView';
+import { LegalView } from '../legal/LegalView';
+import { MaintenanceScreen } from '../maintenance/MaintenanceScreen';
 import { NewCategoryModal } from '../modals/NewCategoryModal';
 import { NewGoalModal } from '../modals/NewGoalModal';
 import { NewTransactionModal } from '../modals/NewTransactionModal';
@@ -20,9 +23,28 @@ import { TransactionsView } from '../transactions/TransactionsView';
 import { Header } from './Header';
 import { MobileBottomNav } from './MobileBottomNav';
 import { Sidebar } from './Sidebar';
+import { api } from '../../services/api';
 
 export const AppShell: React.FC = () => {
-  const { activeTab, isLocked, isLoading, finishLoading, loadingMessage, currentRoute, isAuthenticated, isAdminAuthenticated } = useWealth();
+  const { activeTab, isLocked, isLoading, finishLoading, loadingMessage, currentRoute, isAuthenticated, isAdminAuthenticated, setActiveTab } = useWealth();
+
+  // Maintenance Mode — récupéré depuis l'API backend au chargement
+  const [isMaintenanceMode, setIsMaintenanceMode] = useState(false);
+  const [maintenanceMessage, setMaintenanceMessage] = useState('');
+  const [maintenanceChecked, setMaintenanceChecked] = useState(false);
+
+  useEffect(() => {
+    api.system.getSettings().then((res) => {
+      if (res.success && res.data) {
+        setIsMaintenanceMode(Boolean(res.data.maintenanceMode));
+        setMaintenanceMessage(res.data.maintenanceMessage || '');
+      }
+    }).catch(() => {
+      // En cas d'erreur réseau, ne pas bloquer le site
+    }).finally(() => {
+      setMaintenanceChecked(true);
+    });
+  }, []);
 
   const renderActiveView = () => {
     switch (activeTab) {
@@ -46,6 +68,10 @@ export const AppShell: React.FC = () => {
         return <SettingsView />;
       case 'security':
         return <SettingsView />;
+      case 'help-center':
+        return <HelpCenterView />;
+      case 'legal':
+        return <LegalView />;
       default:
         return <DashboardView />;
     }
@@ -56,12 +82,23 @@ export const AppShell: React.FC = () => {
     return <LoadingScreen onFinished={finishLoading} message={loadingMessage} />;
   }
 
-  // 2. Admin — vérifié AVANT l'auth utilisateur (accès indépendant)
+  // 2. Admin — vérifié AVANT tout le reste (accès indépendant, maintenance ignorée pour l'admin)
   if (isAdminAuthenticated && activeTab === 'admin') {
     return <AdminView />;
   }
 
-  // 3. Landing Page (not authenticated or on landing route)
+  // 3. Mode maintenance (bloque tout utilisateur sauf administrateur)
+  if (isMaintenanceMode && maintenanceChecked && !isAdminAuthenticated) {
+    return (
+      <MaintenanceScreen
+        message={maintenanceMessage}
+        onRefresh={() => window.location.reload()}
+        onOpenHelp={() => setActiveTab('help-center')}
+      />
+    );
+  }
+
+  // 4. Landing Page (not authenticated or on landing route)
   if (!isAuthenticated || currentRoute === 'landing') {
     return (
       <>

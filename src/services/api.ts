@@ -358,15 +358,78 @@ export const api = {
     },
   },
 
+  // Paramètres système globaux (publics)
+  system: {
+    getSettings: async () => {
+      return apiRequest<any>('/system/settings');
+    },
+  },
+
+  // Centre d'aide et support
+  support: {
+    createTicket: async (data: {
+      name: string;
+      email: string;
+      subject: string;
+      category: string;
+      message: string;
+      userId?: string;
+    }) => {
+      return apiRequest<any>('/support/tickets', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    },
+
+    checkBan: async (email: string) => {
+      return apiRequest<any>(`/support/ban-status?email=${encodeURIComponent(email)}`);
+    },
+  },
+
   // Admin
   admin: {
     getUsers: async () => {
       return apiRequest<any[]>('/admin/users');
     },
 
-    deleteUser: async (id: string) => {
+    deleteUser: async (id: string, reason?: string) => {
       return apiRequest<any>(`/admin/users/${id}`, {
         method: 'DELETE',
+        body: JSON.stringify({ reason }),
+      });
+    },
+
+    getBans: async () => {
+      return apiRequest<any[]>('/admin/bans');
+    },
+
+    removeBan: async (id: string) => {
+      return apiRequest<any>(`/admin/bans/${id}`, {
+        method: 'DELETE',
+      });
+    },
+
+    getTickets: async () => {
+      return apiRequest<any[]>('/admin/support/tickets');
+    },
+
+    updateTicket: async (id: string, status?: string, reply?: string) => {
+      return apiRequest<any>(`/admin/support/tickets/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status, reply }),
+      });
+    },
+
+    updateSettings: async (settings: any) => {
+      return apiRequest<any>('/admin/settings', {
+        method: 'PUT',
+        body: JSON.stringify(settings),
+      });
+    },
+
+    purgeCache: async () => {
+      return apiRequest<any>('/admin/maintenance/cache-clear', {
+        method: 'POST',
       });
     },
   },

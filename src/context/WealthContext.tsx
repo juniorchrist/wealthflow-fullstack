@@ -76,7 +76,7 @@ interface WealthContextType {
   isAdminAuthenticated: boolean;
   setIsAdminAuthenticated: (v: boolean) => void;
   registeredUsers: AdminUser[];
-  deleteUser: (userId: string) => Promise<boolean>;
+  deleteUser: (userId: string, reason?: string) => Promise<boolean>;
   refreshAdminUsers: () => Promise<void>;
 
   // Financial Computations
@@ -586,10 +586,10 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     monthlyBudgetTotal,
   ]);
 
-  // Suppression d'un utilisateur par l'administrateur
-  const deleteUser = async (userId: string): Promise<boolean> => {
+  // Suppression et bannissement d'un utilisateur par l'administrateur (avec motif réel)
+  const deleteUser = async (userId: string, reason?: string): Promise<boolean> => {
     try {
-      await api.admin.deleteUser(userId);
+      await api.admin.deleteUser(userId, reason);
     } catch (e) {
       console.warn('[WealthFlow API] Erreur lors de la suppression distante:', e);
     }
@@ -600,7 +600,7 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       return updated;
     });
 
-    // Si l'utilisateur supprimé est la session active
+    // Si l'utilisateur supprimé est la session active, le déconnecter
     const toDelete = registeredUsers.find((u) => u.id === userId);
     if (toDelete && toDelete.email.toLowerCase() === userProfile.email?.toLowerCase()) {
       logout();

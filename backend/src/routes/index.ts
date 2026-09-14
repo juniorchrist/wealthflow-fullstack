@@ -9,6 +9,8 @@ import notificationsRoutes from './notifications.routes';
 import settingsRoutes from './settings.routes';
 import analyticsRoutes from './analytics.routes';
 import adminRoutes from './admin.routes';
+import systemRoutes from './system.routes';
+import supportRoutes from './support.routes';
 
 const router = Router();
 
@@ -33,6 +35,9 @@ router.get('/', (req, res) => {
       notifications: '/api/notifications',
       settings: '/api/settings',
       analytics: '/api/analytics',
+      admin: '/api/admin/*',
+      system: '/api/system/*',
+      support: '/api/support/*',
     },
   });
 });
@@ -67,4 +72,11 @@ router.use('/analytics', analyticsRoutes);
 // Admin
 router.use('/admin', adminRoutes);
 
+// System Settings & Maintenance & Legal
+router.use('/system', systemRoutes);
+
+// Support & Help Center & Ban Lookup
+router.use('/support', supportRoutes);
+
 export default router;
+

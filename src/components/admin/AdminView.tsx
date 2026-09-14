@@ -33,17 +33,21 @@ import { useWealth } from '../../context/WealthContext';
 import { AdminUser } from '../../types';
 import { BrandLogo } from '../common/BrandLogo';
 import { CategoryIcon } from '../common/CategoryIcon';
+import { api } from '../../services/api';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
-type AdminSection = 'dashboard' | 'users' | 'categories' | 'finances' | 'logs' | 'site-settings';
+type AdminSection = 'dashboard' | 'users' | 'bans' | 'support-tickets' | 'categories' | 'finances' | 'logs' | 'site-settings' | 'legal';
 
 const ADMIN_NAV: { id: AdminSection; label: string; icon: React.ElementType }[] = [
-  { id: 'dashboard',     label: 'Tableau de bord',    icon: LayoutDashboard },
-  { id: 'users',         label: 'Utilisateurs',       icon: Users },
-  { id: 'categories',    label: 'Catégories',         icon: Tags },
-  { id: 'finances',      label: 'Finances globales',  icon: BarChart3 },
-  { id: 'logs',          label: "Journaux d'activité", icon: ClipboardList },
-  { id: 'site-settings', label: 'Paramètres du site', icon: Settings },
+  { id: 'dashboard',        label: 'Tableau de bord',        icon: LayoutDashboard },
+  { id: 'users',            label: 'Utilisateurs',           icon: Users },
+  { id: 'bans',             label: 'Comptes bannis',         icon: Shield },
+  { id: 'support-tickets',  label: 'Tickets support',        icon: Phone },
+  { id: 'categories',       label: 'Catégories',             icon: Tags },
+  { id: 'finances',         label: 'Finances globales',      icon: BarChart3 },
+  { id: 'logs',             label: "Journaux d'activité",    icon: ClipboardList },
+  { id: 'legal',            label: 'Volet Légal (CGU & Conf.)', icon: Globe },
+  { id: 'site-settings',   label: 'Paramètres du site',     icon: Settings },
 ];
 
 // Clé localStorage pour les paramètres du site
@@ -111,10 +115,53 @@ export const AdminView: React.FC = () => {
   const [siteSettings, setSiteSettings] = useState<SiteSettings>(loadSiteSettings);
   const [siteSettingsDraft, setSiteSettingsDraft] = useState<SiteSettings>(loadSiteSettings);
   const [settingsSaved, setSettingsSaved] = useState(false);
+  const [banReason, setBanReason] = useState('');
+  const [bansList, setBansList] = useState<any[]>([]);
+  const [ticketsList, setTicketsList] = useState<any[]>([]);
+  const [legalDraft, setLegalDraft] = useState({ termsOfService: '', privacyPolicy: '' });
+  const [legalSaved, setLegalSaved] = useState(false);
+  const [legalLoading, setLegalLoading] = useState(false);
+  const [maintenanceSaved, setMaintenanceSaved] = useState(false);
 
   useEffect(() => {
     refreshAdminUsers();
-  }, [refreshAdminUsers]);
+
+    // Charger les paramètres système, CGU, politique et maintenance
+    api.system.getSettings().then((res) => {
+      if (res.success && res.data) {
+        setLegalDraft({
+          termsOfService: res.data.termsOfService || '',
+          privacyPolicy: res.data.privacyPolicy || '',
+        });
+        setSiteSettingsDraft((prev) => ({
+          ...prev,
+          maintenanceMode: Boolean(res.data.maintenanceMode),
+          announcement: res.data.maintenanceMessage || prev.announcement,
+          allowRegistrations: res.data.allowRegistrations ?? prev.allowRegistrations,
+        }));
+        setSiteSettings((prev) => ({
+          ...prev,
+          maintenanceMode: Boolean(res.data.maintenanceMode),
+          announcement: res.data.maintenanceMessage || prev.announcement,
+          allowRegistrations: res.data.allowRegistrations ?? prev.allowRegistrations,
+        }));
+      }
+    }).catch(() => {});
+
+    // Charger la liste des bannissements
+    api.admin.getBans().then((res) => {
+      if (res.success && Array.isArray(res.data)) {
+        setBansList(res.data);
+      }
+    }).catch(() => {});
+
+    // Charger les tickets support
+    api.admin.getTickets().then((res) => {
+      if (res.success && Array.isArray(res.data)) {
+        setTicketsList(res.data);
+      }
+    }).catch(() => {});
+  }, [refreshAdminUsers, activeSection]);
 
   // Utilisateurs 100% réels (aucun compte fictif)
   const ALL_USERS: AdminUser[] = useMemo(() => {
@@ -158,14 +205,18 @@ export const AdminView: React.FC = () => {
   const handleConfirmDelete = async () => {
     if (!userToDelete) return;
     setDeleteLoading(true);
-    await deleteUser(userToDelete.id);
+    const finalReason = banReason.trim() || 'Non-respect des Conditions Générales d\'Utilisation de WealthFlow';
+    await deleteUser(userToDelete.id, finalReason);
     if (selectedUser?.id === userToDelete.id) {
       setSelectedUser(null);
     }
     setDeleteLoading(false);
     setUserToDelete(null);
-    setActionFeedback('Utilisateur supprimé avec succès');
-    setTimeout(() => setActionFeedback(null), 2500);
+    setBanReason('');
+    setActionFeedback(`Compte banni et supprimé pour le motif : "${finalReason}"`);
+    setTimeout(() => setActionFeedback(null), 3500);
+    // Rafraîchir la liste des bans
+    api.admin.getBans().then((r) => { if (r.success) setBansList(r.data as any[] || []); }).catch(() => {});
   };
 
   // Statistiques globales agrégées
@@ -189,12 +240,76 @@ export const AdminView: React.FC = () => {
     });
   }, [ALL_USERS, userSearch, userFilter]);
 
-  // Gestion des paramètres du site
-  const handleSaveSettings = () => {
+  // Gestion des paramètres du site & mode maintenance avec synchronisation backend
+  const handleSaveSettings = async () => {
     setSiteSettings(siteSettingsDraft);
     localStorage.setItem(SITE_SETTINGS_KEY, JSON.stringify(siteSettingsDraft));
+    try {
+      await api.admin.updateSettings({
+        maintenanceMode: siteSettingsDraft.maintenanceMode,
+        maintenanceMessage: siteSettingsDraft.announcement,
+        allowRegistrations: siteSettingsDraft.allowRegistrations,
+      });
+    } catch (e) {
+      console.warn('[AdminView] Erreur mise à jour settings système:', e);
+    }
     setSettingsSaved(true);
-    setTimeout(() => setSettingsSaved(false), 2000);
+    setActionFeedback('Paramètres & maintenance synchronisés');
+    setTimeout(() => {
+      setSettingsSaved(false);
+      setActionFeedback(null);
+    }, 2500);
+  };
+
+  // Sauvegarde des documents légaux (CGU et Politique de confidentialité)
+  const handleSaveLegal = async () => {
+    setLegalLoading(true);
+    try {
+      await api.admin.updateSettings({
+        termsOfService: legalDraft.termsOfService,
+        privacyPolicy: legalDraft.privacyPolicy,
+      });
+      setLegalSaved(true);
+      setActionFeedback('Documents légaux enregistrés et publiés');
+      setTimeout(() => {
+        setLegalSaved(false);
+        setActionFeedback(null);
+      }, 2500);
+    } catch (e) {
+      console.error('[AdminView] Erreur mise à jour légale:', e);
+    } finally {
+      setLegalLoading(false);
+    }
+  };
+
+  // Révocation d'un bannissement
+  const handleUnban = async (id: string, email: string) => {
+    try {
+      const res = await api.admin.removeBan(id);
+      if (res.success) {
+        setBansList((prev) => prev.filter((b) => b.id !== id));
+        setActionFeedback(`Bannissement levé pour ${email}`);
+        setTimeout(() => setActionFeedback(null), 2500);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  // Mettre à jour le statut d'un ticket
+  const handleUpdateTicketStatus = async (ticketId: string, newStatus: string) => {
+    try {
+      const res = await api.admin.updateTicket(ticketId, newStatus);
+      if (res.success) {
+        setTicketsList((prev) =>
+          prev.map((t) => (t.id === ticketId ? { ...t, status: newStatus } : t))
+        );
+        setActionFeedback(`Statut du ticket mis à jour : ${newStatus}`);
+        setTimeout(() => setActionFeedback(null), 2000);
+      }
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   const handleAdminLogout = () => {
@@ -920,6 +1035,217 @@ export const AdminView: React.FC = () => {
           </div>
         );
 
+      // ── COMPTES BANNIS & MOTIFS RÉELS ─────────────────────────────────────
+      case 'bans':
+        return (
+          <div className="space-y-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-black text-[#18181B] tracking-tight">Comptes bannis & Historique</h2>
+                <p className="text-xs text-[#6F6F73] mt-0.5">
+                  Gestion des sanctions et des motifs réels affichés aux utilisateurs dans le Centre d'aide
+                </p>
+              </div>
+              <span className="px-2.5 py-1 rounded-lg bg-[#EF4444]/10 text-[#EF4444] text-xs font-bold">
+                {bansList.length} banni{bansList.length > 1 ? 's' : ''}
+              </span>
+            </div>
+
+            {bansList.length === 0 ? (
+              <div className="p-8 text-center bg-white border border-[#E8E8E8] rounded-2xl">
+                <div className="w-12 h-12 rounded-full bg-[#10B981]/10 text-[#10B981] flex items-center justify-center mx-auto mb-3">
+                  <Shield className="w-6 h-6" />
+                </div>
+                <h3 className="text-sm font-bold text-[#18181B]">Aucun compte banni pour le moment</h3>
+                <p className="text-xs text-[#6F6F73] mt-1 max-w-sm mx-auto">
+                  Lorsqu'un utilisateur est supprimé ou sanctionné avec un motif, il apparaît ici et peut consulter la raison dans son Centre d'aide.
+                </p>
+              </div>
+            ) : (
+              <div className="bg-white border border-[#E8E8E8] rounded-2xl overflow-hidden divide-y divide-[#F0F0F0]">
+                {bansList.map((ban) => (
+                  <div key={ban.id} className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="space-y-1.5 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-black text-[#18181B]">
+                          {ban.prenom || ban.nom ? `${ban.prenom || ''} ${ban.nom || ''}`.trim() : ban.email}
+                        </span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#EF4444]/10 text-[#EF4444] font-bold">
+                          BANNI
+                        </span>
+                      </div>
+                      <p className="text-xs text-[#52525B] font-mono">{ban.email}</p>
+                      <div className="p-2.5 rounded-xl bg-[#FFF1F2] border border-[#FECDD3] text-xs text-[#9F1239]">
+                        <span className="font-bold">Motif réel enregistré : </span>
+                        {ban.reason}
+                      </div>
+                      <p className="text-[10px] text-[#A1A1AA]">
+                        Sanctionné le {new Date(ban.bannedAt || ban.createdAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })} par {ban.bannedBy || 'Administrateur'}
+                      </p>
+                    </div>
+
+                    <button
+                      onClick={() => handleUnban(ban.id, ban.email)}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#F4F4F5] hover:bg-[#E4E4E7] text-xs font-bold text-[#18181B] transition-colors cursor-pointer self-start sm:self-center"
+                    >
+                      <RotateCw className="w-3.5 h-3.5" /> Lever le ban
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+
+      // ── TICKETS DE SUPPORT ────────────────────────────────────────────────
+      case 'support-tickets':
+        return (
+          <div className="space-y-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-black text-[#18181B] tracking-tight">Tickets d'assistance</h2>
+                <p className="text-xs text-[#6F6F73] mt-0.5">
+                  Demandes d'aide, signalements et recours envoyés depuis le Centre d'aide
+                </p>
+              </div>
+              <span className="px-2.5 py-1 rounded-lg bg-[#3B82F6]/10 text-[#3B82F6] text-xs font-bold">
+                {ticketsList.length} ticket{ticketsList.length > 1 ? 's' : ''}
+              </span>
+            </div>
+
+            {ticketsList.length === 0 ? (
+              <div className="p-8 text-center bg-white border border-[#E8E8E8] rounded-2xl">
+                <div className="w-12 h-12 rounded-full bg-[#3B82F6]/10 text-[#3B82F6] flex items-center justify-center mx-auto mb-3">
+                  <Phone className="w-6 h-6" />
+                </div>
+                <h3 className="text-sm font-bold text-[#18181B]">Aucun ticket en attente</h3>
+                <p className="text-xs text-[#6F6F73] mt-1 max-w-sm mx-auto">
+                  Les messages et demandes soumis par les utilisateurs via le formulaire de contact apparaîtront directement ici.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {ticketsList.map((ticket) => (
+                  <div key={ticket.id} className="p-4 sm:p-5 bg-white border border-[#E8E8E8] rounded-2xl space-y-3 shadow-2xs">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                          ticket.status === 'RESOLVED'
+                            ? 'bg-[#10B981]/15 text-[#10B981]'
+                            : ticket.status === 'CLOSED'
+                            ? 'bg-[#71717A]/15 text-[#71717A]'
+                            : 'bg-[#F59E0B]/15 text-[#F59E0B]'
+                        }`}>
+                          {ticket.status === 'RESOLVED' ? 'Résolu' : ticket.status === 'CLOSED' ? 'Clôturé' : 'En attente'}
+                        </span>
+                        <span className="text-xs font-black text-[#18181B]">{ticket.subject}</span>
+                      </div>
+                      <span className="text-[10px] text-[#A1A1AA]">
+                        {new Date(ticket.createdAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+
+                    <div className="text-xs text-[#52525B] leading-relaxed bg-[#F7F7F7] p-3 rounded-xl border border-[#E8E8E8]">
+                      {ticket.message}
+                    </div>
+
+                    <div className="flex items-center justify-between flex-wrap gap-2 pt-1 border-t border-[#F0F0F0]">
+                      <div className="text-[11px] text-[#6F6F73]">
+                        De : <strong className="text-[#18181B]">{ticket.name}</strong> ({ticket.email})
+                        {ticket.category && (
+                          <span className="ml-2 px-1.5 py-0.5 rounded bg-[#E4E4E7] text-[#3F3F46] text-[10px] font-semibold">
+                            {ticket.category}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {ticket.status !== 'RESOLVED' && (
+                          <button
+                            onClick={() => handleUpdateTicketStatus(ticket.id, 'RESOLVED')}
+                            className="px-2.5 py-1 rounded-lg bg-[#10B981]/10 hover:bg-[#10B981]/20 text-[#10B981] font-bold text-xs transition-colors cursor-pointer"
+                          >
+                            Marquer résolu
+                          </button>
+                        )}
+                        {ticket.status !== 'CLOSED' && (
+                          <button
+                            onClick={() => handleUpdateTicketStatus(ticket.id, 'CLOSED')}
+                            className="px-2.5 py-1 rounded-lg bg-[#F4F4F5] hover:bg-[#E4E4E7] text-[#71717A] font-bold text-xs transition-colors cursor-pointer"
+                          >
+                            Clôturer
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+
+      // ── VOLET LÉGAL (CGU ET CONFIDENTIALITÉ) ──────────────────────────────
+      case 'legal':
+        return (
+          <div className="space-y-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-black text-[#18181B] tracking-tight">Volet Légal & Politiques</h2>
+                <p className="text-xs text-[#6F6F73] mt-0.5">
+                  Rédigez et mettez à jour les Conditions d'Utilisation et la Politique de Confidentialité du site
+                </p>
+              </div>
+              <button
+                onClick={handleSaveLegal}
+                disabled={legalLoading}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#FF5330] hover:bg-[#E04524] text-white text-xs font-bold cursor-pointer transition-all active:scale-95 shadow-sm disabled:opacity-50"
+              >
+                <Save className="w-3.5 h-3.5" />
+                {legalLoading ? 'Enregistrement...' : legalSaved ? 'Enregistré ✓' : 'Publier les modifications'}
+              </button>
+            </div>
+
+            <div className="space-y-6">
+              {/* CGU */}
+              <div className="bg-white border border-[#E8E8E8] rounded-2xl p-5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Globe className="w-4 h-4 text-[#FF5330]" />
+                    <h3 className="text-sm font-black text-[#18181B]">Conditions Générales d'Utilisation (CGU)</h3>
+                  </div>
+                  <span className="text-[10px] text-[#6F6F73]">Visible sur /legal (onglet CGU)</span>
+                </div>
+                <textarea
+                  value={legalDraft.termsOfService}
+                  onChange={(e) => setLegalDraft((p) => ({ ...p, termsOfService: e.target.value }))}
+                  rows={10}
+                  placeholder="Rédigez ici les règles d'utilisation de WealthFlow..."
+                  className="w-full px-3.5 py-3 bg-[#F7F7F7] border border-[#E8E8E8] rounded-xl text-xs text-[#18181B] font-mono leading-relaxed focus:outline-none focus:border-[#FF5330] resize-y"
+                />
+              </div>
+
+              {/* Politique de Confidentialité */}
+              <div className="bg-white border border-[#E8E8E8] rounded-2xl p-5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Shield className="w-4 h-4 text-[#10B981]" />
+                    <h3 className="text-sm font-black text-[#18181B]">Politique de Confidentialité & RGPD</h3>
+                  </div>
+                  <span className="text-[10px] text-[#6F6F73]">Visible sur /legal (onglet Confidentialité)</span>
+                </div>
+                <textarea
+                  value={legalDraft.privacyPolicy}
+                  onChange={(e) => setLegalDraft((p) => ({ ...p, privacyPolicy: e.target.value }))}
+                  rows={10}
+                  placeholder="Rédigez ici les règles relatives à la protection des données personnelles..."
+                  className="w-full px-3.5 py-3 bg-[#F7F7F7] border border-[#E8E8E8] rounded-xl text-xs text-[#18181B] font-mono leading-relaxed focus:outline-none focus:border-[#FF5330] resize-y"
+                />
+              </div>
+            </div>
+          </div>
+        );
+
       default:
         return null;
     }
@@ -1051,8 +1377,38 @@ export const AdminView: React.FC = () => {
               <p className="text-xs text-[#6F6F73] leading-relaxed">
                 Êtes-vous certain de vouloir supprimer définitivement le compte de{' '}
                 <strong className="text-[#18181B]">{userToDelete.name}</strong> ({userToDelete.email}) ?
-                Toutes ses données associées seront supprimées.
+                Toutes ses données associées seront supprimées et ce motif sera enregistré.
               </p>
+
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-[#18181B] block">
+                  Motif réel de suppression / bannissement (affiché au Centre d'aide) :
+                </label>
+                <textarea
+                  value={banReason}
+                  onChange={(e) => setBanReason(e.target.value)}
+                  placeholder="Ex: Non-respect des CGU, suspicion de fraude, spam..."
+                  rows={2}
+                  className="w-full px-3 py-2 bg-[#F7F7F7] border border-[#E8E8E8] rounded-xl text-xs text-[#18181B] focus:outline-none focus:border-[#FF5330] resize-none"
+                />
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {[
+                    "Non-respect des CGU",
+                    "Suspicion d'activité frauduleuse",
+                    "Comportement abusif",
+                    "Demande de clôture",
+                  ].map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => setBanReason(preset)}
+                      className="text-[9px] px-2 py-0.5 rounded-md bg-[#F4F4F5] hover:bg-[#E4E4E7] text-[#52525B] transition-colors cursor-pointer"
+                    >
+                      {preset}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
               <div className="flex items-center gap-2 pt-2">
                 <button

@@ -203,3 +203,45 @@ model BudgetCategory {
   @@index([budgetId])
   @@index([categoryId])
 }
+
+model SystemSetting {
+  id                 String   @id @default("system_config")
+  maintenanceMode    Boolean  @default(false)
+  maintenanceMessage String?  @default("WealthFlow est temporairement en maintenance pour améliorer nos services. Nous revenons très vite !")
+  termsOfService     String?  @db.Text
+  privacyPolicy      String?  @db.Text
+  supportEmail       String?  @default("support@wealthflow.app")
+  supportPhone       String?  @default("+225 07 00 00 00 00")
+  updatedAt          DateTime @updatedAt
+}
+
+model BanRecord {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  nom       String?
+  prenom    String?
+  reason    String   @db.Text
+  bannedAt  DateTime @default(now())
+  bannedBy  String?  @default("Administrateur")
+
+  @@index([email])
+}
+
+model SupportTicket {
+  id        String   @id @default(cuid())
+  userId    String?
+  name      String
+  email     String
+  subject   String
+  category  String   @default("general") // "technique", "compte_banni", "facturation", "autre"
+  message   String   @db.Text
+  status    String   @default("open") // "open", "in_progress", "resolved"
+  reply     String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([email])
+  @@index([status])
+  @@index([createdAt])
+}
+

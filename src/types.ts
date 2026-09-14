@@ -105,7 +105,44 @@ export type ActiveTab =
   | 'notifications'
   | 'settings'
   | 'security'
-  | 'admin';
+  | 'admin'
+  | 'help-center'
+  | 'legal';
 
 export type AppRoute = 'landing' | 'app' | 'login' | 'register';
+
+export interface SystemSettings {
+  id?: string;
+  maintenanceMode: boolean;
+  maintenanceMessage: string;
+  termsOfService: string;
+  privacyPolicy: string;
+  supportEmail: string;
+  supportPhone: string;
+  updatedAt?: string;
+}
+
+export interface BanRecord {
+  id: string;
+  email: string;
+  nom?: string;
+  prenom?: string;
+  reason: string;
+  bannedAt: string;
+  bannedBy?: string;
+}
+
+export interface SupportTicket {
+  id: string;
+  userId?: string;
+  name: string;
+  email: string;
+  subject: string;
+  category: string;
+  message: string;
+  status: 'open' | 'in_progress' | 'resolved';
+  reply?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
 

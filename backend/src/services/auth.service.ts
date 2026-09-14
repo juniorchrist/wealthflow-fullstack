@@ -16,6 +16,7 @@ import {
 } from '../repositories/token.repository';
 import { RegisterInput, LoginInput, RefreshInput } from '../validators/auth.validator';
 import { logger } from '../utils/logger';
+import { prisma } from '../lib/prisma';
 
 export interface AuthTokens {
   accessToken: string;
@@ -31,6 +32,18 @@ export interface AuthResponse {
  * Inscription d'un nouvel utilisateur
  */
 export const register = async (data: RegisterInput): Promise<AuthResponse> => {
+  // Vérifier si l'email fait l'objet d'un bannissement
+  const banRecord = await prisma.banRecord.findUnique({
+    where: { email: data.email.toLowerCase().trim() },
+  });
+  if (banRecord) {
+    throw new AppError(
+      403,
+      `Cette adresse email a été suspendue pour le motif suivant : "${banRecord.reason}". Pour toute réclamation, contactez le Centre d'aide.`,
+      'ACCOUNT_BANNED'
+    );
+  }
+
   // Vérifier si l'email existe déjà
   const existingUser = await findUserByEmail(data.email);
   if (existingUser) {
@@ -53,7 +66,6 @@ export const register = async (data: RegisterInput): Promise<AuthResponse> => {
   logger.info(`Nouvel utilisateur créé: ${user.email}`);
 
   // Créer un compte par défaut pour l'utilisateur
-  const { prisma } = await import('../lib/prisma');
   await prisma.account.create({
     data: {
       userId: user.id,
@@ -83,6 +95,23 @@ export const register = async (data: RegisterInput): Promise<AuthResponse> => {
  * Connexion d'un utilisateur
  */
 export const login = async (data: LoginInput): Promise<AuthResponse> => {
+  // Vérifier d'abord si ce compte est banni
+  const banRecord = await prisma.banRecord.findUnique({
+    where: { email: data.email.toLowerCase().trim() },
+  });
+  if (banRecord) {
+    const banDate = new Date(banRecord.bannedAt).toLocaleDateString('fr-FR', {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
+    });
+    throw new AppError(
+      403,
+      `Ce compte a été suspendu le ${banDate}. Motif réel de bannissement : "${banRecord.reason}". Rendez-vous dans le Centre d'aide pour faire un recours.`,
+      'ACCOUNT_BANNED'
+    );
+  }
+
   // Trouver l'utilisateur
   const user = await findUserByEmail(data.email);
   if (!user) {
