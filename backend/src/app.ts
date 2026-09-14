@@ -32,39 +32,33 @@ const allowedOriginsSet = new Set(
     .filter((u) => /^https?:\/\/[a-zA-Z0-9-._:]+$/.test(u))
 );
 
-// Middleware CORS infaillible & sécurisé
+// Middleware CORS universel & sécurisé (supporte InfinityFree, Netlify, Vercel, localhost, etc.)
 app.use((req, res, next) => {
   const incomingOrigin = req.headers.origin;
 
   if (incomingOrigin && typeof incomingOrigin === 'string') {
-    // Nettoyer rigoureusement l'origine (supprimer tout caractère non ASCII / non URL)
+    // Nettoyer l'origine (supprimer guillemets, slash de fin, espaces)
     const cleanOrigin = incomingOrigin.trim().replace(/^["']|["']$/g, '').replace(/\/+$/, '');
 
-    // Vérifier si autorisée (domaine netlify, localhost ou liste explicite)
-    const isAllowed =
-      allowedOriginsSet.has(cleanOrigin) ||
-      cleanOrigin.endsWith('.netlify.app') ||
-      cleanOrigin.includes('infinityfreeapp.com') ||
-      cleanOrigin.includes('epizy.com') ||
-      cleanOrigin.includes('rf.gd') ||
-      cleanOrigin.includes('localhost') ||
-      cleanOrigin.includes('127.0.0.1') ||
-      env.server.nodeEnv === 'development';
-
-    if (isAllowed) {
-      res.setHeader('Access-Control-Allow-Origin', cleanOrigin);
-      res.setHeader('Access-Control-Allow-Credentials', 'true');
-      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-      res.setHeader(
-        'Access-Control-Allow-Headers',
-        'Content-Type, Authorization, X-Requested-With, Accept, Origin'
-      );
-      res.setHeader('Access-Control-Expose-Headers', 'Content-Range, X-Content-Range');
-      res.setHeader('Access-Control-Max-Age', '86400');
-    }
+    // Renvoyer l'origine appelante pour permettre à tout client Web (InfinityFree, Netlify, localhost, etc.)
+    // de communiquer de manière fluide avec les JWT Bearer tokens
+    res.setHeader('Access-Control-Allow-Origin', cleanOrigin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+    res.setHeader(
+      'Access-Control-Allow-Headers',
+      'Content-Type, Authorization, X-Requested-With, Accept, Origin'
+    );
+    res.setHeader('Access-Control-Expose-Headers', 'Content-Range, X-Content-Range');
+    res.setHeader('Access-Control-Max-Age', '86400');
   } else {
     // Requêtes directes ou serveurs sans header Origin (health checks Render, curl, etc.)
     res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+    res.setHeader(
+      'Access-Control-Allow-Headers',
+      'Content-Type, Authorization, X-Requested-With, Accept, Origin'
+    );
   }
 
   // Répondre immédiatement aux requêtes preflight OPTIONS

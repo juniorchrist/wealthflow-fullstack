@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+import logoImg from '../../logo.png';
 
 interface BrandLogoProps {
   className?: string;
@@ -15,33 +16,40 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
   withDarkContainer = false,
   useOfficialLogo = true,
 }) => {
-  const sizeConfig: Record<string, string> = {
-    sm: 'h-6 sm:h-7',
-    md: 'h-7 sm:h-8',
-    lg: 'h-9 sm:h-10',
-    xl: 'h-11 sm:h-12',
+  const [imgError, setImgError] = useState(false);
+
+  const sizeConfig: Record<string, { height: string; iconSize: string; text: string }> = {
+    sm: { height: 'h-6 sm:h-7', iconSize: 'w-6 h-6', text: 'text-sm sm:text-base font-bold' },
+    md: { height: 'h-7 sm:h-8', iconSize: 'w-7 h-7', text: 'text-base sm:text-lg font-bold' },
+    lg: { height: 'h-9 sm:h-10', iconSize: 'w-8 h-8', text: 'text-lg sm:text-xl font-bold' },
+    xl: { height: 'h-11 sm:h-12', iconSize: 'w-10 h-10', text: 'text-xl sm:text-2xl font-bold' },
   };
 
-  const imgHeight = sizeConfig[size];
+  const cfg = sizeConfig[size] || sizeConfig.md;
 
-  // Logo officiel — fond noir retiré via mix-blend-mode multiply
-  // fonctionne sur fond blanc ou très clair
-  const logoImage = (
-    <div className="flex items-center gap-2">
-      <img
-        src="/logo.png"
-        alt="WealthFlow"
-        className={`${imgHeight} w-auto max-w-full object-contain`}
-        style={{ mixBlendMode: 'multiply' }}
-      />
-    </div>
-  );
-
-  // withDarkContainer gardé pour rétrocompatibilité mais on n'entoure plus d'un fond noir
-  // car le logo doit s'afficher directement sur le fond de la page
   return (
     <div className={`inline-flex items-center select-none ${className}`}>
-      {logoImage}
+      {!imgError ? (
+        <div className="flex items-center gap-2">
+          <img
+            src={logoImg}
+            alt="WealthFlow"
+            className={`${cfg.height} w-auto max-w-full object-contain`}
+            style={{ mixBlendMode: 'multiply' }}
+            onError={() => setImgError(true)}
+          />
+        </div>
+      ) : (
+        /* Fallback élégant et moderne si le fichier image est absent */
+        <div className="flex items-center gap-2">
+          <div className={`${cfg.iconSize} rounded-xl bg-gradient-to-tr from-[#18181B] to-[#3F3F46] flex items-center justify-center text-white shadow-sm font-black`}>
+            W
+          </div>
+          <span className={`${cfg.text} tracking-tight text-[#18181B]`}>
+            Wealth<span className="text-[#3b82f6]">Flow</span>
+          </span>
+        </div>
+      )}
     </div>
   );
 };

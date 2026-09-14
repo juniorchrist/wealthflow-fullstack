@@ -37,7 +37,8 @@ export const clearAuthTokens = (): void => {
 // Fonction générique pour effectuer des requêtes API
 async function apiRequest<T>(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  retryCount: number = 0
 ): Promise<{ success: boolean; data?: T; message?: string; error?: any }> {
   const url = `${API_BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
   
@@ -98,10 +99,28 @@ async function apiRequest<T>(
       message: result.message,
     };
   } catch (error: any) {
+    const errMsg = String(error?.message || error || '');
+    const isNetworkOrFetchError =
+      error?.name === 'TypeError' ||
+      errMsg.toLowerCase().includes('fetch') ||
+      errMsg.toLowerCase().includes('network') ||
+      errMsg.toLowerCase().includes('load');
+
+    // Réessayer automatiquement 1 fois après 1.5s si c'est un réveil de serveur Render
+    if (isNetworkOrFetchError && retryCount < 1) {
+      console.info(`[WealthFlow API] Nouvelle tentative pour ${endpoint} dans 1.5s...`);
+      await new Promise((r) => setTimeout(r, 1500));
+      return apiRequest<T>(endpoint, options, retryCount + 1);
+    }
+
     console.warn(`[WealthFlow API] Erreur lors de l'appel à ${endpoint}:`, error.message);
+    const userMessage = isNetworkOrFetchError
+      ? 'Le serveur Render est en cours de réveil ou inaccessible. Veuillez patienter 15 secondes et réessayer.'
+      : (error.message || 'Impossible de joindre le serveur');
+
     return {
       success: false,
-      message: error.message || 'Impossible de joindre le serveur',
+      message: userMessage,
       error,
     };
   }
