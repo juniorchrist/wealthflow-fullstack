@@ -1,20 +1,36 @@
 import { Router } from 'express';
 import {
+  adminLoginHandler,
   listAdminUsersHandler,
   deleteAdminUserHandler,
   listBansHandler,
   deleteBanHandler,
   listSupportTicketsHandler,
   updateSupportTicketHandler,
+  broadcastNotificationHandler,
   maintenancePurgeHandler,
 } from '../controllers/admin.controller';
 import { updateSystemSettingsHandler } from '../controllers/system.controller';
+import { requireAuth, requireAdmin } from '../middleware/auth';
+import { authLimiter } from '../middleware/rateLimit';
 
 const router = Router();
 
 /**
+ * @route   POST /api/admin/login
+ * @desc    Connexion sécurisée administrateur
+ * @access  Public
+ */
+router.post('/login', authLimiter, adminLoginHandler);
+
+// ============================================================================
+// TOUTES LES ROUTES CI-DESSOUS REQUIÈRENT LE RÔLE ADMIN EN BASE DE DONNÉES
+// ============================================================================
+router.use(requireAuth, requireAdmin);
+
+/**
  * @route   GET /api/admin/users
- * @desc    Obtenir tous les utilisateurs réels
+ * @desc    Obtenir tous les utilisateurs réels avec leurs données financières
  */
 router.get('/users', listAdminUsersHandler);
 
@@ -23,6 +39,12 @@ router.get('/users', listAdminUsersHandler);
  * @desc    Supprimer et bannir un utilisateur avec motif réel
  */
 router.delete('/users/:id', deleteAdminUserHandler);
+
+/**
+ * @route   POST /api/admin/notifications/broadcast
+ * @desc    Diffuser une notification à un ou tous les utilisateurs
+ */
+router.post('/notifications/broadcast', broadcastNotificationHandler);
 
 /**
  * @route   GET /api/admin/bans
@@ -44,7 +66,7 @@ router.get('/support/tickets', listSupportTicketsHandler);
 
 /**
  * @route   PATCH /api/admin/support/tickets/:id
- * @desc    Mettre à jour un ticket
+ * @desc    Mettre à jour un ticket et notifier automatiquement l'utilisateur
  */
 router.patch('/support/tickets/:id', updateSupportTicketHandler);
 

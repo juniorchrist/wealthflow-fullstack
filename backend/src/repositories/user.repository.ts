@@ -11,6 +11,7 @@ export interface CreateUserData {
   language?: string;
   timezone?: string;
   dateFormat?: string;
+  role?: string;
 }
 
 export interface UpdateUserData {
@@ -25,6 +26,7 @@ export interface UpdateUserData {
   pinHash?: string;
   isPinEnabled?: boolean;
   autoLockMinutes?: number;
+  role?: string;
 }
 
 /**
@@ -33,7 +35,7 @@ export interface UpdateUserData {
 export const createUser = async (data: CreateUserData): Promise<User> => {
   return prisma.user.create({
     data: {
-      email: data.email,
+      email: data.email.toLowerCase().trim(),
       passwordHash: data.passwordHash,
       nom: data.nom,
       prenom: data.prenom,
@@ -42,6 +44,7 @@ export const createUser = async (data: CreateUserData): Promise<User> => {
       language: data.language || 'Français',
       timezone: data.timezone || 'GMT +00:00',
       dateFormat: data.dateFormat || 'DD/MM/YYYY',
+      role: data.role || 'user',
     },
   });
 };
@@ -51,7 +54,7 @@ export const createUser = async (data: CreateUserData): Promise<User> => {
  */
 export const findUserByEmail = async (email: string): Promise<User | null> => {
   return prisma.user.findUnique({
-    where: { email: email.toLowerCase() },
+    where: { email: email.toLowerCase().trim() },
   });
 };
 
@@ -78,7 +81,7 @@ export const updateUser = async (
 };
 
 /**
- * Obtenir tous les utilisateurs pour la vue admin
+ * Obtenir tous les utilisateurs pour la vue admin avec toutes les relations financières réelles
  */
 export const getAllUsers = async () => {
   return prisma.user.findMany({
@@ -91,26 +94,37 @@ export const getAllUsers = async () => {
       avatar: true,
       currency: true,
       plan: true,
+      role: true,
       createdAt: true,
       updatedAt: true,
       transactions: {
         select: {
+          id: true,
+          title: true,
           amount: true,
           type: true,
+          date: true,
         },
+        orderBy: { date: 'desc' },
       },
       savingsGoals: {
         select: {
+          id: true,
+          title: true,
           targetAmount: true,
           deposits: {
             select: {
+              id: true,
               amount: true,
+              date: true,
             },
           },
         },
       },
       budgets: {
         select: {
+          id: true,
+          month: true,
           totalBudget: true,
         },
       },
@@ -122,11 +136,71 @@ export const getAllUsers = async () => {
 };
 
 /**
- * Supprimer un utilisateur (admin uniquement)
+ * Supprimer définitivement un utilisateur et toutes ses données en cascade transactionnelle
  */
 export const deleteUser = async (userId: string): Promise<User> => {
-  return prisma.user.delete({
-    where: { id: userId },
+  return prisma.$transaction(async (tx) => {
+    // 1. Supprimer les dépôts d'épargne des objectifs de l'utilisateur
+    const goals = await tx.savingsGoal.findMany({
+      where: { userId },
+      select: { id: true },
+    });
+    const goalIds = goals.map((g) => g.id);
+    if (goalIds.length > 0) {
+      await tx.savingsDeposit.deleteMany({
+        where: { goalId: { in: goalIds } },
+      });
+    }
+
+    // 2. Supprimer les objectifs d'épargne
+    await tx.savingsGoal.deleteMany({
+      where: { userId },
+    });
+
+    // 3. Supprimer les budgets et leurs catégories
+    const budgets = await tx.budget.findMany({
+      where: { userId },
+      select: { id: true },
+    });
+    const budgetIds = budgets.map((b) => b.id);
+    if (budgetIds.length > 0) {
+      await tx.budgetCategory.deleteMany({
+        where: { budgetId: { in: budgetIds } },
+      });
+      await tx.budget.deleteMany({
+        where: { id: { in: budgetIds } },
+      });
+    }
+
+    // 4. Supprimer les transactions de l'utilisateur
+    await tx.transaction.deleteMany({
+      where: { userId },
+    });
+
+    // 5. Supprimer les catégories personnalisées de l'utilisateur
+    await tx.category.deleteMany({
+      where: { userId },
+    });
+
+    // 6. Supprimer les comptes bancaires / portefeuilles
+    await tx.account.deleteMany({
+      where: { userId },
+    });
+
+    // 7. Supprimer les notifications
+    await tx.notification.deleteMany({
+      where: { userId },
+    });
+
+    // 8. Supprimer les refresh tokens
+    await tx.refreshToken.deleteMany({
+      where: { userId },
+    });
+
+    // 9. Supprimer enfin l'utilisateur
+    return tx.user.delete({
+      where: { id: userId },
+    });
   });
 };
 
@@ -148,11 +222,11 @@ export const getUserProfile = async (userId: string) => {
       timezone: true,
       dateFormat: true,
       plan: true,
+      role: true,
       isPinEnabled: true,
       autoLockMinutes: true,
       createdAt: true,
       updatedAt: true,
-      // Ne pas exposer passwordHash et pinHash
     },
   });
 

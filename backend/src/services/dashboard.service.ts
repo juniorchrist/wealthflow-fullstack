@@ -61,9 +61,22 @@ export const getDashboardSummary = async (userId: string) => {
     }),
   ]);
 
-  // Calculer le solde total (initialBalance + revenus - dépenses)
+  // Récupérer l'intégralité de l'épargne déposée
+  const allSavingsDeposits = await prisma.savingsDeposit.findMany({
+    where: {
+      goal: {
+        userId,
+      },
+    },
+    select: {
+      amount: true,
+    },
+  });
+  const totalSaved = allSavingsDeposits.reduce((sum, d) => sum + Number(d.amount || 0), 0);
+
+  // Calculer le solde disponible réel (initialBalance + revenus - dépenses - épargne)
   const totalInitialBalance = accounts.reduce((sum, account) => sum + account.initialBalance, 0);
-  const balance = totalInitialBalance + totalIncome - totalExpenses;
+  const balance = totalInitialBalance + totalIncome - totalExpenses - totalSaved;
 
   // Calculer currentAmount pour chaque goal
   const goalsWithAmount = savingsGoals.map((goal) => {
@@ -81,8 +94,6 @@ export const getDashboardSummary = async (userId: string) => {
       color: goal.color,
     };
   });
-
-  const totalSaved = goalsWithAmount.reduce((sum, goal) => sum + goal.currentAmount, 0);
 
   // Calculer le budget mensuel
   const categories = await prisma.category.findMany({

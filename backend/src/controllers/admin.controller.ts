@@ -1,9 +1,105 @@
 import { Request, Response, NextFunction } from 'express';
-import { getAllUsers, deleteUser, findUserById } from '../repositories/user.repository';
+import { getAllUsers, deleteUser, findUserById, findUserByEmail } from '../repositories/user.repository';
 import { prisma } from '../lib/prisma';
+import { generateAccessToken, generateRefreshToken } from '../utils/jwt';
+import { saveRefreshToken } from '../repositories/token.repository';
+import { hashPassword } from '../utils/hash';
 
 /**
- * Récupérer la liste des utilisateurs réels pour l'administration
+ * Authentification administrateur dédiée et sécurisée
+ * POST /api/admin/login
+ */
+export const adminLoginHandler = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { identifier, password } = req.body || {};
+
+    const cleanId = String(identifier || '').trim().toLowerCase();
+    const cleanPass = String(password || '');
+
+    const validAdminId = (process.env.ADMIN_ID || 'admin').toLowerCase();
+    const validAdminPass = process.env.ADMIN_PASSWORD || 'wealthflow2026';
+
+    if (cleanId !== validAdminId && cleanId !== 'admin@wealthflow.app') {
+      res.status(401).json({
+        success: false,
+        message: 'Identifiant administrateur invalide',
+      });
+      return;
+    }
+
+    if (cleanPass !== validAdminPass) {
+      res.status(401).json({
+        success: false,
+        message: 'Mot de passe administrateur incorrect',
+      });
+      return;
+    }
+
+    // Trouver ou créer le compte admin en base de données
+    const adminEmail = 'admin@wealthflow.app';
+    let adminUser = await findUserByEmail(adminEmail);
+
+    if (!adminUser) {
+      const defaultHash = await hashPassword(validAdminPass);
+      adminUser = await prisma.user.create({
+        data: {
+          email: adminEmail,
+          passwordHash: defaultHash,
+          nom: 'WealthFlow',
+          prenom: 'Admin',
+          role: 'admin',
+          plan: 'WealthFlow Master Admin',
+        },
+      });
+    } else if (adminUser.role !== 'admin') {
+      adminUser = await prisma.user.update({
+        where: { id: adminUser.id },
+        data: { role: 'admin' },
+      });
+    }
+
+    const payload = {
+      userId: adminUser.id,
+      email: adminUser.email,
+      role: 'admin',
+    };
+
+    const accessToken = generateAccessToken(payload);
+    const refreshToken = generateRefreshToken(payload);
+
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7);
+    await saveRefreshToken(adminUser.id, refreshToken, expiresAt);
+
+    res.status(200).json({
+      success: true,
+      message: 'Authentification administrateur réussie',
+      data: {
+        user: {
+          id: adminUser.id,
+          email: adminUser.email,
+          nom: adminUser.nom,
+          prenom: adminUser.prenom,
+          role: 'admin',
+          plan: adminUser.plan,
+        },
+        tokens: {
+          accessToken,
+          refreshToken,
+        },
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Récupérer la liste des utilisateurs réels avec leurs données financières réelles pour l'administration
  * GET /api/admin/users
  */
 export const listAdminUsersHandler = async (
@@ -14,21 +110,36 @@ export const listAdminUsersHandler = async (
   try {
     const rawUsers = await getAllUsers();
 
+    // Récupérer les emails bannis
+    const bans = await prisma.banRecord.findMany({ select: { email: true } });
+    const bannedEmailsSet = new Set(bans.map((b) => b.email.toLowerCase()));
+
     const formattedUsers = rawUsers.map((u) => {
       const income = u.transactions
         .filter((t) => t.type === 'income')
-        .reduce((sum, t) => sum + Number(t.amount), 0);
+        .reduce((sum, t) => sum + Number(t.amount || 0), 0);
 
       const expenses = u.transactions
         .filter((t) => t.type === 'expense')
-        .reduce((sum, t) => sum + Number(t.amount), 0);
+        .reduce((sum, t) => sum + Number(t.amount || 0), 0);
 
       const savings = (u.savingsGoals || []).reduce(
-        (sum: number, g: any) => sum + (g.deposits || []).reduce((dSum: number, d: any) => dSum + Number(d.amount || 0), 0),
+        (sum: number, g: any) =>
+          sum +
+          (g.deposits || []).reduce(
+            (dSum: number, d: any) => dSum + Number(d.amount || 0),
+            0
+          ),
         0
       );
 
-      const budgetTotal = u.budgets.reduce((sum, b) => sum + Number(b.totalBudget), 0);
+      const budgetTotal = u.budgets.reduce(
+        (sum, b) => sum + Number(b.totalBudget || 0),
+        0
+      );
+
+      const calculatedBalance = income - expenses - savings;
+      const isBanned = bannedEmailsSet.has(u.email.toLowerCase());
 
       const fullName = `${u.prenom || ''} ${u.nom || ''}`.trim() || u.email;
 
@@ -44,14 +155,17 @@ export const listAdminUsersHandler = async (
         email: u.email,
         phone: u.numero || '',
         plan: u.plan || 'WealthFlow Pro',
-        status: 'actif',
+        role: u.role || 'user',
+        status: isBanned ? 'banni' : 'actif',
         lastLogin: 'Récemment',
         joinDate: formattedJoin,
         income,
         expenses,
         savings,
+        balance: calculatedBalance,
         transactions: u.transactions.length,
         budgetTotal,
+        recentTransactions: u.transactions.slice(0, 5),
       };
     });
 
@@ -81,18 +195,19 @@ export const deleteAdminUserHandler = async (
     if (!user) {
       res.status(404).json({
         success: false,
-        message: 'Utilisateur non trouvé',
+        message: 'Utilisateur non trouvé en base de données',
       });
       return;
     }
 
-    const banReason = reason && String(reason).trim().length > 0
-      ? String(reason).trim()
-      : 'Suppression administrative pour non-respect des conditions d’utilisation';
+    const banReason =
+      reason && String(reason).trim().length > 0
+        ? String(reason).trim()
+        : 'Suppression administrative pour non-respect des conditions d’utilisation';
 
     // Enregistrer ou mettre à jour le motif de bannissement dans BanRecord
     await prisma.banRecord.upsert({
-      where: { email: user.email.toLowerCase() },
+      where: { email: user.email.toLowerCase().trim() },
       update: {
         reason: banReason,
         nom: user.nom,
@@ -101,7 +216,7 @@ export const deleteAdminUserHandler = async (
         bannedBy: bannedBy || 'Administrateur',
       },
       create: {
-        email: user.email.toLowerCase(),
+        email: user.email.toLowerCase().trim(),
         nom: user.nom,
         prenom: user.prenom,
         reason: banReason,
@@ -110,12 +225,85 @@ export const deleteAdminUserHandler = async (
       },
     });
 
-    // Supprimer le compte et toutes ses relations en cascade
+    // Supprimer le compte et toutes ses relations en cascade transactionnelle
     await deleteUser(id);
 
     res.status(200).json({
       success: true,
       message: `Le compte de ${user.email} a été supprimé et banni avec succès pour le motif : "${banReason}"`,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Diffuser une notification à un utilisateur ou à tous les utilisateurs
+ * POST /api/admin/notifications/broadcast
+ */
+export const broadcastNotificationHandler = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { title, message, type, targetUserId } = req.body;
+
+    if (!title || !message) {
+      res.status(400).json({
+        success: false,
+        message: 'Le titre et le message de la notification sont obligatoires',
+      });
+      return;
+    }
+
+    if (targetUserId && targetUserId !== 'all') {
+      // Notification ciblée pour un utilisateur précis
+      const notif = await prisma.notification.create({
+        data: {
+          userId: targetUserId,
+          title: String(title).trim(),
+          message: String(message).trim(),
+          type: type || 'info',
+        },
+      });
+
+      res.status(201).json({
+        success: true,
+        message: 'Notification envoyée avec succès à l\'utilisateur',
+        data: notif,
+      });
+      return;
+    }
+
+    // Notification globale pour TOUS les utilisateurs enregistrés
+    const allUsers = await prisma.user.findMany({
+      select: { id: true },
+    });
+
+    if (allUsers.length === 0) {
+      res.status(200).json({
+        success: true,
+        message: 'Aucun utilisateur présent en base.',
+      });
+      return;
+    }
+
+    const notificationsData = allUsers.map((u) => ({
+      userId: u.id,
+      title: String(title).trim(),
+      message: String(message).trim(),
+      type: type || 'info',
+    }));
+
+    await prisma.notification.createMany({
+      data: notificationsData,
+    });
+
+    res.status(201).json({
+      success: true,
+      message: `Notification globale diffusée avec succès à ${allUsers.length} utilisateur(s)`,
+      count: allUsers.length,
     });
   } catch (error) {
     next(error);
@@ -146,7 +334,7 @@ export const listBansHandler = async (
 };
 
 /**
- * Révoquer un bannissement (débannir)
+ * Révoquer un bannissement
  * DELETE /api/admin/bans/:id
  */
 export const deleteBanHandler = async (
@@ -193,7 +381,7 @@ export const listSupportTicketsHandler = async (
 };
 
 /**
- * Mettre à jour un ticket d'assistance (statut, réponse de l'admin)
+ * Mettre à jour un ticket d'assistance et notifier automatiquement l'utilisateur lors de la résolution
  * PATCH /api/admin/support/tickets/:id
  */
 export const updateSupportTicketHandler = async (
@@ -205,6 +393,18 @@ export const updateSupportTicketHandler = async (
     const { id } = req.params;
     const { status, reply } = req.body;
 
+    const existingTicket = await prisma.supportTicket.findUnique({
+      where: { id },
+    });
+
+    if (!existingTicket) {
+      res.status(404).json({
+        success: false,
+        message: 'Ticket introuvable',
+      });
+      return;
+    }
+
     const updated = await prisma.supportTicket.update({
       where: { id },
       data: {
@@ -212,6 +412,38 @@ export const updateSupportTicketHandler = async (
         ...(reply !== undefined ? { reply } : {}),
       },
     });
+
+    // Si le ticket est résolu ou si une réponse a été fournie, créer une notification pour l'utilisateur
+    if (status === 'resolved' || (reply && reply.trim().length > 0)) {
+      let targetUser = null;
+      if (existingTicket.userId) {
+        targetUser = await findUserById(existingTicket.userId);
+      }
+      if (!targetUser && existingTicket.email) {
+        targetUser = await findUserByEmail(existingTicket.email);
+      }
+
+      if (targetUser) {
+        const notifTitle =
+          status === 'resolved'
+            ? `🎫 Ticket Support Résolu : ${existingTicket.subject}`
+            : `💬 Réponse à votre ticket : ${existingTicket.subject}`;
+
+        const notifMessage =
+          reply && reply.trim().length > 0
+            ? reply.trim()
+            : 'Votre demande d\'assistance a été traitée et résolue avec succès par l\'équipe WealthFlow.';
+
+        await prisma.notification.create({
+          data: {
+            userId: targetUser.id,
+            title: notifTitle,
+            message: notifMessage,
+            type: status === 'resolved' ? 'success' : 'info',
+          },
+        });
+      }
+    }
 
     res.status(200).json({
       success: true,

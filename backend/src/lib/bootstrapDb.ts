@@ -56,6 +56,7 @@ export const bootstrapDatabase = async (): Promise<{ success: boolean; applied: 
   await run(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "timezone" TEXT DEFAULT 'GMT +00:00';`, 'Add column timezone');
   await run(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "dateFormat" TEXT DEFAULT 'DD/MM/YYYY';`, 'Add column dateFormat');
   await run(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "plan" TEXT DEFAULT 'WealthFlow Pro';`, 'Add column plan');
+  await run(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "role" TEXT DEFAULT 'user';`, 'Add column role');
   await run(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "pinHash" TEXT;`, 'Add column pinHash');
   await run(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "isPinEnabled" BOOLEAN DEFAULT false;`, 'Add column isPinEnabled');
   await run(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "autoLockMinutes" INTEGER DEFAULT 15;`, 'Add column autoLockMinutes');

@@ -1,9 +1,10 @@
 import { Request, Response, NextFunction } from 'express';
 import { verifyAccessToken } from '../utils/jwt';
 import { AppError } from './errorHandler';
+import { prisma } from '../lib/prisma';
 
 /**
- * Middleware pour vérifier l'authentification
+ * Middleware pour vérifier l'authentification et l'existence réelle en base
  */
 export const requireAuth = async (
   req: Request,
@@ -11,7 +12,6 @@ export const requireAuth = async (
   next: NextFunction
 ) => {
   try {
-    // Récupérer le token depuis le header Authorization
     const authHeader = req.headers.authorization;
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -20,13 +20,25 @@ export const requireAuth = async (
 
     const token = authHeader.substring(7); // Enlever "Bearer "
 
-    // Vérifier le token
+    // Vérifier la signature et validité temporelle du token
     const payload = verifyAccessToken(token);
 
-    // Attacher l'utilisateur à la requête
+    // Vérifier impérativement l'existence réelle du compte en base de données
+    // (empêche un utilisateur supprimé par l'admin d'utiliser un ancien token valide)
+    const user = await prisma.user.findUnique({
+      where: { id: payload.userId },
+      select: { id: true, email: true, role: true },
+    });
+
+    if (!user) {
+      throw new AppError(401, 'Compte utilisateur introuvable ou supprimé', 'ACCOUNT_NOT_FOUND');
+    }
+
+    // Attacher l'utilisateur vérifié à la requête
     req.user = {
-      userId: payload.userId,
-      email: payload.email,
+      userId: user.id,
+      email: user.email,
+      role: user.role || 'user',
     };
 
     next();
@@ -36,6 +48,29 @@ export const requireAuth = async (
     } else {
       next(new AppError(401, 'Token invalide ou expiré', 'INVALID_TOKEN'));
     }
+  }
+};
+
+/**
+ * Middleware pour vérifier que l'utilisateur est administrateur
+ */
+export const requireAdmin = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    if (!req.user) {
+      throw new AppError(401, 'Authentification requise', 'UNAUTHORIZED');
+    }
+
+    if (req.user.role !== 'admin') {
+      throw new AppError(403, 'Accès refusé. Privilèges administrateur requis.', 'FORBIDDEN_ADMIN_ONLY');
+    }
+
+    next();
+  } catch (error) {
+    next(error);
   }
 };
 
@@ -53,15 +88,22 @@ export const optionalAuth = async (
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.substring(7);
       const payload = verifyAccessToken(token);
-      req.user = {
-        userId: payload.userId,
-        email: payload.email,
-      };
+      const user = await prisma.user.findUnique({
+        where: { id: payload.userId },
+        select: { id: true, email: true, role: true },
+      });
+      if (user) {
+        req.user = {
+          userId: user.id,
+          email: user.email,
+          role: user.role || 'user',
+        };
+      }
     }
 
     next();
   } catch (error) {
-    // En cas d'erreur, on continue sans utilisateur
     next();
   }
 };
+

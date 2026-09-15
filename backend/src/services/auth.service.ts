@@ -222,6 +222,7 @@ const generateTokensForUser = async (user: User): Promise<AuthTokens> => {
   const payload = {
     userId: user.id,
     email: user.email,
+    role: user.role || 'user',
   };
 
   // Générer access token

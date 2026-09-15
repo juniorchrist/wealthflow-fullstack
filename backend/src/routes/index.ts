@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import authRoutes from './auth.routes';
+import accountsRoutes from './accounts.routes';
 import categoriesRoutes from './categories.routes';
 import transactionsRoutes from './transactions.routes';
 import dashboardRoutes from './dashboard.routes';
@@ -27,6 +28,7 @@ router.get('/', (req, res) => {
     endpoints: {
       health: '/api/health',
       auth: '/api/auth/*',
+      accounts: '/api/accounts',
       transactions: '/api/transactions',
       categories: '/api/categories',
       savings: '/api/savings-goals',
@@ -44,6 +46,9 @@ router.get('/', (req, res) => {
 
 // Authentication
 router.use('/auth', authRoutes);
+
+// Accounts
+router.use('/accounts', accountsRoutes);
 
 // Categories
 router.use('/categories', categoriesRoutes);

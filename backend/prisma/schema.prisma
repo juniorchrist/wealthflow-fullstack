@@ -23,6 +23,7 @@ model User {
   timezone          String         @default("GMT +00:00")
   dateFormat        String         @default("DD/MM/YYYY")
   plan              String         @default("WealthFlow Pro")
+  role              String         @default("user") // "user" | "admin"
   pinHash           String?
   isPinEnabled      Boolean        @default(false)
   autoLockMinutes   Int            @default(15)

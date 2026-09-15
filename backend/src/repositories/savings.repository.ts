@@ -155,26 +155,52 @@ export const addDeposit = async (
     throw new Error('Objectif d\'épargne non trouvé');
   }
 
-  // Créer une transaction de type savings_deposit
-  const depositDate = date || new Date();
-  const transaction = await prisma.transaction.create({
-    data: {
-      userId,
-      categoryId: 'default-epargne-revenus', // Catégorie par défaut épargne
-      title: `Dépôt - ${goal.title}`,
-      amount,
-      type: 'savings_deposit',
-      date: depositDate,
+  // Trouver ou créer une catégorie pour l'épargne
+  let category = await prisma.category.findFirst({
+    where: {
+      OR: [
+        { name: { contains: 'Épargne', mode: 'insensitive' } },
+        { isDefault: true },
+      ],
     },
   });
 
-  // Créer le SavingsDeposit lié à la transaction
-  return prisma.savingsDeposit.create({
-    data: {
-      goalId,
-      transactionId: transaction.id,
-      amount,
-      date: depositDate,
-    },
+  if (!category) {
+    category = await prisma.category.create({
+      data: {
+        id: 'default-epargne-auto',
+        name: 'Épargne & Investissement',
+        icon: 'PiggyBank',
+        color: '#FF5330',
+        type: 'expense',
+        isDefault: true,
+      },
+    });
+  }
+
+  const depositDate = date || new Date();
+
+  return prisma.$transaction(async (tx) => {
+    // 1. Créer la transaction de type savings_deposit
+    const transaction = await tx.transaction.create({
+      data: {
+        userId,
+        categoryId: category.id,
+        title: `Dépôt - ${goal.title}`,
+        amount,
+        type: 'savings_deposit',
+        date: depositDate,
+      },
+    });
+
+    // 2. Créer le SavingsDeposit lié à la transaction
+    return tx.savingsDeposit.create({
+      data: {
+        goalId,
+        transactionId: transaction.id,
+        amount,
+        date: depositDate,
+      },
+    });
   });
 };
