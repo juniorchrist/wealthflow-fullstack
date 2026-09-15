@@ -16,17 +16,17 @@ export const NewGoalModal: React.FC = () => {
 
   if (!isNewGoalModalOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const target = Number(targetAmount);
     if (!title.trim() || target <= 0) return;
 
     const initialCurrent = Number(currentAmount) || 0;
 
-    addSavingsGoal({
+    // Créer l'objectif d'épargne avec éventuellement un dépôt initial
+    await addSavingsGoal({
       title: title.trim(),
       targetAmount: target,
-      currentAmount: initialCurrent,
       deadline,
       icon,
       color: '#FF5330',
@@ -34,7 +34,7 @@ export const NewGoalModal: React.FC = () => {
       checkedBoxes: [],
       isAutoSaveActive,
       autoSaveAmount: isAutoSaveActive ? Number(autoSaveAmount) : undefined,
-    });
+    }, initialCurrent > 0 ? initialCurrent : undefined);
 
     setTitle('');
     setTargetAmount('');

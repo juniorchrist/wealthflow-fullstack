@@ -141,6 +141,12 @@ export const AppShell: React.FC = () => {
 
   // 5. Admin depuis l'app connectée
   if (activeTab === 'admin') {
+    // Vérifier le rôle réel de l'utilisateur
+    if (!isAdminAuthenticated) {
+      // Rediriger vers dashboard si l'utilisateur n'est pas admin
+      setActiveTab('dashboard');
+      return <AdminView />;
+    }
     return <AdminView />;
   }
 

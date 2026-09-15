@@ -33,7 +33,7 @@ interface WealthContextType {
 
   // Savings Goals
   savingsGoals: SavingsGoal[];
-  addSavingsGoal: (goal: Omit<SavingsGoal, 'id' | 'currentAmount'>) => void;
+  addSavingsGoal: (goal: Omit<SavingsGoal, 'id' | 'currentAmount'>, initialDeposit?: number) => void;
   updateSavingsGoal: (id: string, updates: Partial<SavingsGoal>) => void;
   deleteSavingsGoal: (id: string) => void;
   contributeToGoal: (id: string, amount: number) => void;
@@ -265,7 +265,14 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }));
       }
 
-      // 2. Transactions
+      // 2. Comptes bancaires
+      const accountsRes = await api.accounts.getAll();
+      if (accountsRes.success && Array.isArray(accountsRes.data)) {
+        // Stocker les comptes dans le localStorage pour synchronisation
+        localStorage.setItem('wf_accounts', JSON.stringify(accountsRes.data));
+      }
+
+      // 3. Transactions
       const txRes = await api.transactions.getAll({ limit: 100 });
       if (txRes.success && txRes.data?.transactions) {
         const remoteTxs: Transaction[] = txRes.data.transactions.map((t: any) => ({
@@ -283,7 +290,7 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setTransactions(remoteTxs);
       }
 
-      // 3. Catégories
+      // 4. Catégories
       const catRes = await api.categories.getAll();
       if (catRes.success && Array.isArray(catRes.data) && catRes.data.length > 0) {
         const remoteCats: Category[] = catRes.data.map((c: any) => ({
@@ -297,10 +304,10 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setCategories(remoteCats);
       }
 
-      // 4. Objectifs d'épargne
+      // 5. Objectifs d'épargne
       const goalsRes = await api.savings.getAll();
-      if (goalsRes.success && Array.isArray(goalsRes.data)) {
-        const remoteGoals: SavingsGoal[] = goalsRes.data.map((g: any) => ({
+      if (goalsRes.success && goalsRes.data?.goals && Array.isArray(goalsRes.data.goals)) {
+        const remoteGoals: SavingsGoal[] = goalsRes.data.goals.map((g: any) => ({
           id: g.id,
           title: g.title,
           targetAmount: g.targetAmount,
@@ -317,7 +324,7 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setSavingsGoals(remoteGoals);
       }
 
-      // 5. Notifications
+      // 6. Notifications
       const notifRes = await api.notifications.getAll();
       if (notifRes.success && Array.isArray(notifRes.data)) {
         const remoteNotifs: NotificationItem[] = notifRes.data.map((n: any) => ({
@@ -343,7 +350,18 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, [isAuthenticated, refreshRemoteData]);
 
   // Auth methods
-  const login = (credentials?: { email?: string; name?: string; pinCode?: string }) => {
+  const login = async (credentials?: { email?: string; name?: string; pinCode?: string; role?: string }) => {
+    // Récupérer le rôle réel depuis l'API
+    let userRole = 'user';
+    try {
+      const profileRes = await api.auth.me();
+      if (profileRes.success && profileRes.data?.user) {
+        userRole = profileRes.data.user.role || 'user';
+      }
+    } catch (err) {
+      console.warn('[WealthFlow] Impossible de récupérer le rôle utilisateur');
+    }
+
     const updated = {
       ...userProfile,
       name: credentials?.name || userProfile.name,
@@ -357,7 +375,17 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
     setIsAuthenticated(true);
     localStorage.setItem(STORAGE_KEYS.SESSION, 'true');
-    setCurrentRoute('app');
+    
+    // Redirection basée sur le rôle réel
+    if (userRole === 'admin') {
+      setIsAdminAuthenticated(true);
+      setCurrentRoute('app');
+      setActiveTab('admin');
+    } else {
+      setCurrentRoute('app');
+      setActiveTab('dashboard');
+    }
+    
     setIsLocked(false);
     refreshRemoteData();
   };
@@ -461,10 +489,16 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     .filter((t) => t.type === 'expense')
     .reduce((acc, curr) => acc + curr.amount, 0);
 
+  // Calculer le total des dépôts d'épargne depuis les transactions
+  const totalSavingsDeposits = transactions
+    .filter((t) => t.type === 'savings_deposit')
+    .reduce((acc, curr) => acc + curr.amount, 0);
+
   const totalSaved = savingsGoals.reduce((acc, curr) => acc + curr.currentAmount, 0);
 
-  // Solde disponible réel : Revenus totaux - Dépenses totales
-  const totalBalance = totalIncome - totalExpenses;
+  // Solde disponible réel : Revenus totaux - Dépenses totales - Épargnes placées
+  // Les épargnes sont de l'argent mis de côté, donc non disponible pour les dépenses courantes
+  const totalBalance = totalIncome - totalExpenses - totalSavingsDeposits;
 
   const monthlyBudgetTotal = categories
     .filter((c) => c.type === 'expense')
@@ -681,7 +715,7 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   // Savings Goal CRUD connecté à l'API Backend
-  const addSavingsGoal = async (goal: Omit<SavingsGoal, 'id' | 'currentAmount'>) => {
+  const addSavingsGoal = async (goal: Omit<SavingsGoal, 'id' | 'currentAmount'>, initialDeposit?: number) => {
     const tempId = `goal-${Date.now()}`;
     const newGoal: SavingsGoal = {
       ...goal,
@@ -702,10 +736,16 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         description: goal.description,
       });
 
-      if (res.success && res.data?.id) {
+      if (res.success && res.data?.goal?.id) {
+        const realId = res.data.goal.id;
         setSavingsGoals((prev) =>
-          prev.map((g) => (g.id === tempId ? { ...g, id: res.data.id } : g))
+          prev.map((g) => (g.id === tempId ? { ...g, id: realId } : g))
         );
+
+        // Si un dépôt initial est spécifié, le faire automatiquement
+        if (initialDeposit && initialDeposit > 0) {
+          await contributeToGoal(realId, initialDeposit);
+        }
       }
     } catch (err) {
       console.warn('[WealthFlow API] Erreur lors de l\'ajout d\'objectif:', err);

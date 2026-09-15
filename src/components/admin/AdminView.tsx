@@ -312,6 +312,47 @@ export const AdminView: React.FC = () => {
     }
   };
 
+  // Diffuser une notification à tous les utilisateurs
+  const handleBroadcastNotification = async () => {
+    const titleInput = document.getElementById('notif-title') as HTMLInputElement;
+    const messageInput = document.getElementById('notif-message') as HTMLTextAreaElement;
+    const typeInput = document.getElementById('notif-type') as HTMLSelectElement;
+
+    const title = titleInput?.value?.trim();
+    const message = messageInput?.value?.trim();
+    const type = typeInput?.value || 'info';
+
+    if (!title || !message) {
+      setActionFeedback('⚠️ Veuillez remplir le titre et le message');
+      setTimeout(() => setActionFeedback(null), 2000);
+      return;
+    }
+
+    try {
+      const res = await api.admin.broadcastNotification({
+        title,
+        message,
+        type,
+        targetUserId: 'all',
+      });
+
+      if (res.success) {
+        setActionFeedback(`✅ Notification diffusée à tous les utilisateurs`);
+        // Vider les champs
+        if (titleInput) titleInput.value = '';
+        if (messageInput) messageInput.value = '';
+        setTimeout(() => setActionFeedback(null), 3000);
+      } else {
+        setActionFeedback(`❌ ${res.message || 'Erreur lors de l\'envoi'}`);
+        setTimeout(() => setActionFeedback(null), 3000);
+      }
+    } catch (e) {
+      console.error(e);
+      setActionFeedback('❌ Erreur de connexion au serveur');
+      setTimeout(() => setActionFeedback(null), 3000);
+    }
+  };
+
   const handleAdminLogout = () => {
     setIsAdminAuthenticated(false);
     setActiveTab('dashboard');
@@ -967,6 +1008,42 @@ export const AdminView: React.FC = () => {
               </div>
             </div>
 
+            {/* Notification globale aux utilisateurs */}
+            <div className="space-y-2">
+              <h3 className="font-extrabold text-xs text-[#6F6F73] uppercase tracking-wider px-1">📢 Envoyer une notification</h3>
+              <div className="bg-white border border-[#E8E8E8] rounded-xl p-4 space-y-3">
+                <div>
+                  <label className="text-[11px] font-bold text-[#18181B] block mb-1.5">Titre de la notification</label>
+                  <input type="text" placeholder="Ex: Mise à jour de la politique de confidentialité"
+                    className="w-full px-3 py-2.5 bg-[#F7F7F7] border border-[#E8E8E8] rounded-xl text-sm font-semibold text-[#18181B] focus:outline-none focus:border-[#FF5330]"
+                    id="notif-title" />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-[#18181B] block mb-1.5">Message</label>
+                  <textarea rows={4} placeholder="Rédigez ici le contenu de la notification..."
+                    className="w-full px-3 py-2.5 bg-[#F7F7F7] border border-[#E8E8E8] rounded-xl text-sm text-[#18181B] focus:outline-none focus:border-[#FF5330] resize-none"
+                    id="notif-message" />
+                </div>
+                <div className="flex items-center gap-2">
+                  <select className="flex-1 px-3 py-2 bg-[#F7F7F7] border border-[#E8E8E8] rounded-xl text-xs font-semibold text-[#18181B] focus:outline-none focus:border-[#FF5330]"
+                    id="notif-type">
+                    <option value="info">ℹ️ Information</option>
+                    <option value="warning">⚠️ Avertissement</option>
+                    <option value="success">✅ Succès</option>
+                    <option value="alert">🔴 Alerte</option>
+                  </select>
+                  <button onClick={handleBroadcastNotification}
+                    className="px-4 py-2 rounded-xl bg-[#FF5330] hover:bg-[#E04524] text-white text-xs font-bold cursor-pointer transition-all active:scale-95 shadow-sm inline-flex items-center gap-1.5">
+                    <Bell className="w-3.5 h-3.5" />
+                    Diffuser à tous
+                  </button>
+                </div>
+                <p className="text-[10px] text-[#6F6F73] italic">
+                  💡 Cette notification sera envoyée à tous les utilisateurs enregistrés et apparaîtra dans leur centre de notifications.
+                </p>
+              </div>
+            </div>
+
             {/* Paramètres de fonctionnement */}
             <div className="space-y-2">
               <h3 className="font-extrabold text-xs text-[#6F6F73] uppercase tracking-wider px-1">Fonctionnement</h3>
@@ -1130,13 +1207,13 @@ export const AdminView: React.FC = () => {
                     <div className="flex items-center justify-between flex-wrap gap-2">
                       <div className="flex items-center gap-2">
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                          ticket.status === 'RESOLVED'
+                          ticket.status === 'resolved'
                             ? 'bg-[#10B981]/15 text-[#10B981]'
-                            : ticket.status === 'CLOSED'
-                            ? 'bg-[#71717A]/15 text-[#71717A]'
+                            : ticket.status === 'in_progress'
+                            ? 'bg-[#3B82F6]/15 text-[#3B82F6]'
                             : 'bg-[#F59E0B]/15 text-[#F59E0B]'
                         }`}>
-                          {ticket.status === 'RESOLVED' ? 'Résolu' : ticket.status === 'CLOSED' ? 'Clôturé' : 'En attente'}
+                          {ticket.status === 'resolved' ? 'Résolu' : ticket.status === 'in_progress' ? 'En cours' : 'En attente'}
                         </span>
                         <span className="text-xs font-black text-[#18181B]">{ticket.subject}</span>
                       </div>
@@ -1160,20 +1237,20 @@ export const AdminView: React.FC = () => {
                       </div>
 
                       <div className="flex items-center gap-2">
-                        {ticket.status !== 'RESOLVED' && (
+                        {ticket.status !== 'resolved' && (
                           <button
-                            onClick={() => handleUpdateTicketStatus(ticket.id, 'RESOLVED')}
+                            onClick={() => handleUpdateTicketStatus(ticket.id, 'resolved')}
                             className="px-2.5 py-1 rounded-lg bg-[#10B981]/10 hover:bg-[#10B981]/20 text-[#10B981] font-bold text-xs transition-colors cursor-pointer"
                           >
                             Marquer résolu
                           </button>
                         )}
-                        {ticket.status !== 'CLOSED' && (
+                        {ticket.status === 'open' && (
                           <button
-                            onClick={() => handleUpdateTicketStatus(ticket.id, 'CLOSED')}
-                            className="px-2.5 py-1 rounded-lg bg-[#F4F4F5] hover:bg-[#E4E4E7] text-[#71717A] font-bold text-xs transition-colors cursor-pointer"
+                            onClick={() => handleUpdateTicketStatus(ticket.id, 'in_progress')}
+                            className="px-2.5 py-1 rounded-lg bg-[#3B82F6]/10 hover:bg-[#3B82F6]/20 text-[#3B82F6] font-bold text-xs transition-colors cursor-pointer"
                           >
-                            Clôturer
+                            En cours
                           </button>
                         )}
                       </div>

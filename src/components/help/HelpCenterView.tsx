@@ -3,9 +3,7 @@ import {
   AlertTriangle,
   ArrowLeft,
   CheckCircle2,
-  ChevronDown,
   Headphones,
-  HelpCircle,
   Mail,
   MessageSquare,
   Phone,
@@ -22,7 +20,7 @@ import { BrandLogo } from '../common/BrandLogo';
 export const HelpCenterView: React.FC = () => {
   const { setActiveTab, userProfile, isAuthenticated } = useWealth();
 
-  const [activeSubTab, setActiveSubTab] = useState<'contact' | 'ban-check' | 'faq'>('contact');
+  const [activeSubTab, setActiveSubTab] = useState<'contact' | 'ban-check'>('contact');
 
   // État formulaire de contact
   const [formData, setFormData] = useState({
@@ -48,31 +46,6 @@ export const HelpCenterView: React.FC = () => {
     message?: string;
   } | null>(null);
 
-  // FAQ interactive
-  const [openFaq, setOpenFaq] = useState<number | null>(0);
-
-  const FAQ_ITEMS = [
-    {
-      q: "Comment fonctionne le code PIN et le verrouillage de l'application ?",
-      a: "Vous pouvez configurer un code PIN à 4 chiffres dans 'Sécurité & PIN'. Une fois activé, l'application se verrouille automatiquement après votre délai d'inactivité configuré (ex: 15 min), ou immédiatement en cliquant sur le cadenas dans le menu.",
-    },
-    {
-      q: "Mes données financières sont-elles sécurisées ?",
-      a: "Absolument. Vos identifiants sont chiffrés avec les normes bancaires de l'industrie (bcrypt, TLS/HTTPS). Vos données ne sont jamais partagées ni vendues à des services publicitaires tiers.",
-    },
-    {
-      q: "Mon compte a été suspendu ou supprimé. Que faire ?",
-      a: "Rendez-vous dans l'onglet 'Statut du compte' ci-dessus. Entrez votre email pour voir la raison exacte de la décision de l'administrateur. Vous pourrez ensuite envoyer un message de recours via le formulaire de contact.",
-    },
-    {
-      q: "Comment exporter toutes mes données et transactions ?",
-      a: "Vous pouvez télécharger l'intégralité de vos comptes, transactions et objectifs sous format JSON depuis l'onglet 'Paramètres' en bas de page.",
-    },
-    {
-      q: "Que faire en cas d'erreur lors de l'enregistrement d'une opération ?",
-      a: "Vérifiez votre connexion internet. Si le serveur Render s'est mis en veille, patientez une vingtaine de secondes puis réessayez. Si le problème persiste, écrivez-nous via le formulaire ci-contre.",
-    },
-  ];
 
   const handleContactSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -220,18 +193,6 @@ export const HelpCenterView: React.FC = () => {
         >
           <ShieldAlert className="w-3.5 h-3.5" />
           <span>Statut du compte & Motif réel</span>
-        </button>
-
-        <button
-          onClick={() => setActiveSubTab('faq')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer whitespace-nowrap ${
-            activeSubTab === 'faq'
-              ? 'bg-[#18181B] text-white'
-              : 'bg-[#F7F7F7] text-[#71717A] hover:bg-[#EAEAEA]'
-          }`}
-        >
-          <HelpCircle className="w-3.5 h-3.5" />
-          <span>Questions fréquentes (FAQ)</span>
         </button>
       </div>
 
@@ -510,38 +471,6 @@ export const HelpCenterView: React.FC = () => {
               )}
             </div>
           )}
-        </div>
-      )}
-
-      {/* ─── ONGLET 3 : FAQ ─── */}
-      {activeSubTab === 'faq' && (
-        <div className="max-w-3xl mx-auto space-y-3">
-          {FAQ_ITEMS.map((item, idx) => {
-            const isOpen = openFaq === idx;
-            return (
-              <div
-                key={idx}
-                className="rounded-2xl bg-white border border-[#E8E8E8] overflow-hidden transition-all shadow-xs"
-              >
-                <button
-                  onClick={() => setOpenFaq(isOpen ? null : idx)}
-                  className="w-full px-5 py-4 flex items-center justify-between gap-3 text-left font-bold text-xs sm:text-sm text-[#18181B] hover:bg-[#FAFAFA] transition-colors cursor-pointer"
-                >
-                  <span>{item.q}</span>
-                  <ChevronDown
-                    className={`w-4 h-4 text-[#71717A] flex-shrink-0 transition-transform ${
-                      isOpen ? 'rotate-180' : ''
-                    }`}
-                  />
-                </button>
-                {isOpen && (
-                  <div className="px-5 pb-4 pt-1 text-xs text-[#52525B] leading-relaxed border-t border-[#F4F4F5] bg-[#FCFCFC]">
-                    {item.a}
-                  </div>
-                )}
-              </div>
-            );
-          })}
         </div>
       )}
 

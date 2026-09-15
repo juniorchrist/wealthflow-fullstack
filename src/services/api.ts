@@ -358,6 +358,47 @@ export const api = {
     },
   },
 
+  // Accounts
+  accounts: {
+    getAll: async () => {
+      return apiRequest<any[]>('/accounts');
+    },
+
+    create: async (payload: { 
+      name: string; 
+      type?: 'main' | 'card' | 'cash' | 'savings'; 
+      initialBalance?: number; 
+      currency?: string; 
+      icon?: string; 
+      color?: string;
+      isDefault?: boolean;
+    }) => {
+      return apiRequest<any>('/accounts', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+    },
+
+    update: async (id: string, payload: any) => {
+      return apiRequest<any>(`/accounts/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      });
+    },
+
+    delete: async (id: string) => {
+      return apiRequest<any>(`/accounts/${id}`, {
+        method: 'DELETE',
+      });
+    },
+
+    setDefault: async (id: string) => {
+      return apiRequest<any>(`/accounts/${id}/default`, {
+        method: 'PATCH',
+      });
+    },
+  },
+
   // Paramètres système globaux (publics)
   system: {
     getSettings: async () => {
@@ -388,6 +429,17 @@ export const api = {
 
   // Admin
   admin: {
+    login: async (payload: { identifier: string; password: string }) => {
+      const res = await apiRequest<{ user: any; tokens: { accessToken: string; refreshToken: string } }>('/admin/login', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+      if (res.success && res.data?.tokens) {
+        setAuthToken(res.data.tokens.accessToken, res.data.tokens.refreshToken);
+      }
+      return res;
+    },
+
     getUsers: async () => {
       return apiRequest<any[]>('/admin/users');
     },
@@ -396,6 +448,13 @@ export const api = {
       return apiRequest<any>(`/admin/users/${id}`, {
         method: 'DELETE',
         body: JSON.stringify({ reason }),
+      });
+    },
+
+    broadcastNotification: async (payload: { title: string; message: string; type?: string; targetUserId?: string }) => {
+      return apiRequest<any>('/admin/notifications/broadcast', {
+        method: 'POST',
+        body: JSON.stringify(payload),
       });
     },
 

@@ -22,6 +22,19 @@ export interface Category {
   type: 'expense' | 'income';
 }
 
+export interface Account {
+  id: string;
+  name: string;
+  type: 'main' | 'card' | 'cash' | 'savings';
+  initialBalance: number;
+  currency: string;
+  isDefault: boolean;
+  icon?: string;
+  color?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface SavingsGoal {
   id: string;
   title: string;
@@ -76,14 +89,17 @@ export interface AdminUser {
   email: string;
   phone?: string;
   plan: string;
-  status: 'actif' | 'inactif';
+  status: 'actif' | 'inactif' | 'banni';
+  role?: string;
   lastLogin: string;
   joinDate: string;
   income: number;
   expenses: number;
   savings: number;
+  balance?: number;
   transactions: number;
   budgetTotal: number;
+  recentTransactions?: any[];
 }
 
 export interface MonthlyChartData {

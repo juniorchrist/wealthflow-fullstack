@@ -70,6 +70,7 @@ export const AuthModal: React.FC = () => {
           name: fullName,
           email: u.email,
           pinCode: password,
+          role: u.role || 'user',
         });
         handleClose();
       } else {
