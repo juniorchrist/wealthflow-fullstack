@@ -123,42 +123,67 @@ export const AdminView: React.FC = () => {
   const [legalLoading, setLegalLoading] = useState(false);
   const [maintenanceSaved, setMaintenanceSaved] = useState(false);
 
+  const fetchTickets = async () => {
+    try {
+      const res = await api.admin.getTickets();
+      if (res.success && res.data) {
+        const list = Array.isArray(res.data)
+          ? res.data
+          : Array.isArray((res.data as any)?.tickets)
+          ? (res.data as any).tickets
+          : Array.isArray((res.data as any)?.data)
+          ? (res.data as any).data
+          : [];
+        setTicketsList(list);
+      }
+    } catch (e) {
+      console.error('[AdminView] Erreur chargement tickets:', e);
+    }
+  };
+
+  const fetchBans = async () => {
+    try {
+      const res = await api.admin.getBans();
+      if (res.success && res.data) {
+        const list = Array.isArray(res.data)
+          ? res.data
+          : Array.isArray((res.data as any)?.bans)
+          ? (res.data as any).bans
+          : Array.isArray((res.data as any)?.data)
+          ? (res.data as any).data
+          : [];
+        setBansList(list);
+      }
+    } catch (e) {
+      console.error('[AdminView] Erreur chargement bans:', e);
+    }
+  };
+
   useEffect(() => {
     refreshAdminUsers();
+    fetchBans();
+    fetchTickets();
 
     // Charger les paramètres système, CGU, politique et maintenance
     api.system.getSettings().then((res) => {
       if (res.success && res.data) {
+        const settingsData = (res.data as any)?.data || res.data;
         setLegalDraft({
-          termsOfService: res.data.termsOfService || '',
-          privacyPolicy: res.data.privacyPolicy || '',
+          termsOfService: settingsData.termsOfService || '',
+          privacyPolicy: settingsData.privacyPolicy || '',
         });
         setSiteSettingsDraft((prev) => ({
           ...prev,
-          maintenanceMode: Boolean(res.data.maintenanceMode),
-          announcement: res.data.maintenanceMessage || prev.announcement,
-          allowRegistrations: res.data.allowRegistrations ?? prev.allowRegistrations,
+          maintenanceMode: Boolean(settingsData.maintenanceMode),
+          announcement: settingsData.maintenanceMessage || prev.announcement,
+          allowRegistrations: settingsData.allowRegistrations ?? prev.allowRegistrations,
         }));
         setSiteSettings((prev) => ({
           ...prev,
-          maintenanceMode: Boolean(res.data.maintenanceMode),
-          announcement: res.data.maintenanceMessage || prev.announcement,
-          allowRegistrations: res.data.allowRegistrations ?? prev.allowRegistrations,
+          maintenanceMode: Boolean(settingsData.maintenanceMode),
+          announcement: settingsData.maintenanceMessage || prev.announcement,
+          allowRegistrations: settingsData.allowRegistrations ?? prev.allowRegistrations,
         }));
-      }
-    }).catch(() => {});
-
-    // Charger la liste des bannissements
-    api.admin.getBans().then((res) => {
-      if (res.success && Array.isArray(res.data)) {
-        setBansList(res.data);
-      }
-    }).catch(() => {});
-
-    // Charger les tickets support
-    api.admin.getTickets().then((res) => {
-      if (res.success && Array.isArray(res.data)) {
-        setTicketsList(res.data);
       }
     }).catch(() => {});
   }, [refreshAdminUsers, activeSection]);
@@ -196,7 +221,11 @@ export const AdminView: React.FC = () => {
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    await refreshAdminUsers();
+    await Promise.all([
+      refreshAdminUsers(),
+      fetchBans(),
+      fetchTickets(),
+    ]);
     setIsRefreshing(false);
     setActionFeedback('Synchronisation réussie');
     setTimeout(() => setActionFeedback(null), 2500);
@@ -265,18 +294,25 @@ export const AdminView: React.FC = () => {
   const handleSaveLegal = async () => {
     setLegalLoading(true);
     try {
-      await api.admin.updateSettings({
+      const res = await api.admin.updateSettings({
         termsOfService: legalDraft.termsOfService,
         privacyPolicy: legalDraft.privacyPolicy,
       });
-      setLegalSaved(true);
-      setActionFeedback('Documents légaux enregistrés et publiés');
-      setTimeout(() => {
-        setLegalSaved(false);
-        setActionFeedback(null);
-      }, 2500);
-    } catch (e) {
+      if (res.success) {
+        setLegalSaved(true);
+        setActionFeedback('Documents légaux enregistrés et publiés');
+        setTimeout(() => {
+          setLegalSaved(false);
+          setActionFeedback(null);
+        }, 2500);
+      } else {
+        setActionFeedback(res.message || 'Erreur lors de l’enregistrement des documents légaux');
+        setTimeout(() => setActionFeedback(null), 3000);
+      }
+    } catch (e: any) {
       console.error('[AdminView] Erreur mise à jour légale:', e);
+      setActionFeedback(e?.message || 'Erreur lors de la mise à jour des documents légaux');
+      setTimeout(() => setActionFeedback(null), 3000);
     } finally {
       setLegalLoading(false);
     }

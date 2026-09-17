@@ -31,6 +31,7 @@ export const LandingView: React.FC = () => {
   const [adminLoginOpen, setAdminLoginOpen] = useState(false);
   const [contactModalOpen, setContactModalOpen] = useState(false);
   const [legalModalOpen, setLegalModalOpen] = useState(false);
+  const [legalTab, setLegalTab] = useState<'terms' | 'privacy' | 'faq'>('terms');
   const [supportEmail, setSupportEmail] = useState('support@wealthflow.app');
 
   useEffect(() => {
@@ -521,7 +522,7 @@ export const LandingView: React.FC = () => {
               <ul className="space-y-2">
                 <li>
                   <button
-                    onClick={() => setLegalModalOpen(true)}
+                    onClick={() => { setLegalTab('terms'); setLegalModalOpen(true); }}
                     className="text-xs text-[#6F6F73] hover:text-[#FF5330] transition-colors cursor-pointer text-left"
                   >
                     Conditions d'utilisation
@@ -529,7 +530,7 @@ export const LandingView: React.FC = () => {
                 </li>
                 <li>
                   <button
-                    onClick={() => setLegalModalOpen(true)}
+                    onClick={() => { setLegalTab('privacy'); setLegalModalOpen(true); }}
                     className="text-xs text-[#6F6F73] hover:text-[#FF5330] transition-colors cursor-pointer text-left"
                   >
                     Politique de confidentialité
@@ -537,7 +538,7 @@ export const LandingView: React.FC = () => {
                 </li>
                 <li>
                   <button
-                    onClick={() => setLegalModalOpen(true)}
+                    onClick={() => { setLegalTab('faq'); setLegalModalOpen(true); }}
                     className="text-xs font-bold text-[#FF5330] hover:underline transition-colors cursor-pointer text-left"
                   >
                     FAQ
@@ -709,7 +710,7 @@ export const LandingView: React.FC = () => {
             >
               <X className="w-4 h-4" />
             </button>
-            <LegalView />
+            <LegalView initialTab={legalTab} />
           </div>
         </div>
       )}

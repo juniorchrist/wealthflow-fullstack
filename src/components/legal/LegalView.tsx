@@ -3,15 +3,23 @@ import { ArrowLeft, ChevronDown, FileText, HelpCircle, Lock, Printer, Shield, Sp
 import { useWealth } from '../../context/WealthContext';
 import { api } from '../../services/api';
 
-export const LegalView: React.FC = () => {
+interface LegalViewProps {
+  initialTab?: 'terms' | 'privacy' | 'faq';
+}
+
+export const LegalView: React.FC<LegalViewProps> = ({ initialTab = 'terms' }) => {
   const { setActiveTab, isAuthenticated, addNotification } = useWealth();
 
-  const [activeTabLegal, setActiveTabLegal] = useState<'terms' | 'privacy' | 'faq'>('terms');
+  const [activeTabLegal, setActiveTabLegal] = useState<'terms' | 'privacy' | 'faq'>(initialTab);
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const [terms, setTerms] = useState<string>('');
   const [privacy, setPrivacy] = useState<string>('');
   const [updatedAt, setUpdatedAt] = useState<string>('');
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setActiveTabLegal(initialTab);
+  }, [initialTab]);
 
   // FAQ Content
   const FAQ_ITEMS = [
@@ -33,21 +41,23 @@ export const LegalView: React.FC = () => {
     },
     {
       q: "Que faire en cas d'erreur lors de l'enregistrement d'une opération ?",
-      a: "Vérifiez votre connexion internet. Si le serveur Render s'est mis en veille, patientez une vingtaine de secondes puis réessayez. Si le problème persiste, écrivez-nous via le formulaire du Centre d'aide.",
+      a: "Vérifiez votre connexion internet. Si le serveur Render s'est mis en veille, patientez une vingtaine de secondes puis réessayer. Si le problème persiste, écrivez-nous via le formulaire du Centre d'aide.",
     },
   ];
 
   useEffect(() => {
     let isMounted = true;
+    setLoading(true);
     api.system.getSettings().then((res) => {
       if (!isMounted) return;
       if (res.success && res.data) {
-        const termsContent = res.data.termsOfService || '';
-        const privacyContent = res.data.privacyPolicy || '';
+        const settingsData = (res.data as any)?.data || res.data;
+        const termsContent = settingsData.termsOfService || '';
+        const privacyContent = settingsData.privacyPolicy || '';
         setTerms(termsContent);
         setPrivacy(privacyContent);
-        if (res.data.updatedAt) {
-          const formattedDate = new Date(res.data.updatedAt).toLocaleDateString('fr-FR', {
+        if (settingsData.updatedAt) {
+          const formattedDate = new Date(settingsData.updatedAt).toLocaleDateString('fr-FR', {
             day: '2-digit',
             month: 'long',
             year: 'numeric',
@@ -55,7 +65,7 @@ export const LegalView: React.FC = () => {
           setUpdatedAt(formattedDate);
 
           // Pousser une notification unique par version des documents légaux
-          const flagKey = `wf_legal_notif_${res.data.updatedAt}`;
+          const flagKey = `wf_legal_notif_${settingsData.updatedAt}`;
           if (!localStorage.getItem(flagKey) && (termsContent || privacyContent)) {
             addNotification({
               title: '📜 Documents légaux mis à jour',
