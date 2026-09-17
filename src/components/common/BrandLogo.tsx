@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import logoImg from '../../logo.png';
 
 interface BrandLogoProps {
   className?: string;
@@ -32,7 +31,7 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
       {!imgError ? (
         <div className="flex items-center gap-2">
           <img
-            src={logoImg}
+            src="/logo.png"
             alt="WealthFlow"
             className={`${cfg.height} w-auto max-w-full object-contain`}
             style={{ mixBlendMode: 'multiply' }}

@@ -24,7 +24,7 @@ export const createTransactionSchema = z.object({
       .optional(),
     date: z
       .string()
-      .regex(/^\d{4}-\d{2}-\d{2}$/, 'La date doit être au format YYYY-MM-DD'),
+      .min(1, 'La date est requise'),
     time: z
       .string()
       .optional(),
@@ -65,7 +65,6 @@ export const updateTransactionSchema = z.object({
       .nullable(),
     date: z
       .string()
-      .regex(/^\d{4}-\d{2}-\d{2}$/, 'La date doit être au format YYYY-MM-DD')
       .optional(),
     time: z
       .string()
@@ -95,11 +94,9 @@ export const transactionFiltersSchema = z.object({
       .optional(),
     startDate: z
       .string()
-      .regex(/^\d{4}-\d{2}-\d{2}$/, 'startDate doit être au format YYYY-MM-DD')
       .optional(),
     endDate: z
       .string()
-      .regex(/^\d{4}-\d{2}-\d{2}$/, 'endDate doit être au format YYYY-MM-DD')
       .optional(),
     page: z
       .string()

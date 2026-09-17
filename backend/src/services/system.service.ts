@@ -51,7 +51,7 @@ export const updateSystemSettings = async (data: {
   supportPhone?: string;
 }) => {
   // S'assurer que le record existe
-  await getOrCreateSystemSettings();
+  const previous = await getOrCreateSystemSettings();
 
   const updated = await prisma.systemSetting.update({
     where: { id: 'system_config' },
@@ -64,6 +64,44 @@ export const updateSystemSettings = async (data: {
       ...(data.supportPhone !== undefined ? { supportPhone: data.supportPhone } : {}),
     },
   });
+
+  // Créer une notification en base pour tous les utilisateurs si des termes ou la maintenance sont modifiés
+  try {
+    const allUsers = await prisma.user.findMany({ select: { id: true } });
+    if (allUsers.length > 0) {
+      const notifs: { userId: string; title: string; message: string; type: string }[] = [];
+
+      if (data.termsOfService !== undefined || data.privacyPolicy !== undefined) {
+        allUsers.forEach((u) => {
+          notifs.push({
+            userId: u.id,
+            title: '📜 Mise à jour des documents légaux (CGU & Confidentialité)',
+            message: 'Les conditions d’utilisation et la politique de confidentialité de WealthFlow ont été mises à jour par l’administration. Consultez la section Légal.',
+            type: 'info',
+          });
+        });
+      }
+
+      if (typeof data.maintenanceMode === 'boolean' && data.maintenanceMode !== previous.maintenanceMode) {
+        allUsers.forEach((u) => {
+          notifs.push({
+            userId: u.id,
+            title: data.maintenanceMode ? '🔧 Maintenance programmée' : '✅ Fin de maintenance',
+            message: data.maintenanceMode
+              ? (data.maintenanceMessage || 'WealthFlow est actuellement en maintenance pour amélioration de nos services.')
+              : 'La plateforme WealthFlow est à nouveau 100% opérationnelle.',
+            type: data.maintenanceMode ? 'warning' : 'success',
+          });
+        });
+      }
+
+      if (notifs.length > 0) {
+        await prisma.notification.createMany({ data: notifs });
+      }
+    }
+  } catch (e) {
+    console.warn('[SystemSetting] Erreur lors de la création de la notification automatique:', e);
+  }
 
   return updated;
 };

@@ -131,7 +131,7 @@ export const TransactionsView: React.FC = () => {
         <p className={`text-sm font-black num-tabular flex-shrink-0 ${
           isIncome ? 'text-[#10B981]' : isSavings ? 'text-[#FF5330]' : 'text-[#18181B]'
         }`}>
-          {isIncome ? '+' : '-'}{formatCurrency(tx.amount)}
+          {isIncome || isSavings ? '+' : '-'}{formatCurrency(tx.amount)}
         </p>
       </div>
     );
@@ -159,7 +159,7 @@ export const TransactionsView: React.FC = () => {
               : selectedTxDetails.type === 'savings_deposit' ? 'text-[#FF5330]'
               : 'text-[#18181B]'
             }`}>
-              {selectedTxDetails.type === 'income' ? '+' : '-'}{formatCurrency(selectedTxDetails.amount)}
+              {selectedTxDetails.type === 'income' || selectedTxDetails.type === 'savings_deposit' ? '+' : '-'}{formatCurrency(selectedTxDetails.amount)}
             </p>
           </div>
 

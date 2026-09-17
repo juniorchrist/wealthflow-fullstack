@@ -47,6 +47,7 @@ export const DashboardView: React.FC = () => {
     setIsNewTransactionModalOpen,
     toggleGoalCheckbox,
     lockApp,
+    dataLoadError,
   } = useWealth();
 
   const [isBalanceHidden, setIsBalanceHidden] = useState(false);
@@ -172,6 +173,23 @@ export const DashboardView: React.FC = () => {
             Voyons où tu en es ce mois-ci.
           </p>
         </div>
+
+        {/* Bannière d'erreur API si backend inaccessible */}
+        {dataLoadError && (
+          <div className="mb-5 p-4 rounded-2xl bg-[#FEF2F2] border border-[#FECACA] flex items-start gap-3 text-xs text-[#991B1B] animate-in fade-in">
+            <AlertTriangle className="w-5 h-5 text-[#EF4444] flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="font-bold text-sm text-[#991B1B]">Erreur de synchronisation backend</p>
+              <p className="mt-0.5 text-xs text-[#7F1D1D]">{dataLoadError}</p>
+              <button
+                onClick={() => window.location.reload()}
+                className="mt-2.5 px-3 py-1.5 rounded-lg bg-[#EF4444] text-white font-bold text-xs cursor-pointer active:scale-95 transition-all"
+              >
+                Réessayer la connexion
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* ── CARTE SOLDE DISPONIBLE ──────────────────────────────── */}
         <div className="mb-5">
@@ -360,7 +378,7 @@ export const DashboardView: React.FC = () => {
                     <p className={`text-base font-black num-tabular flex-shrink-0 ${
                       isIncome ? 'text-[#10B981]' : isSavings ? 'text-[#FF5330]' : 'text-[#18181B]'
                     }`}>
-                      {isIncome ? '+' : '-'}{formatCurrency(tx.amount)}
+                      {isIncome || isSavings ? '+' : '-'}{formatCurrency(tx.amount)}
                     </p>
                   </button>
                 );
@@ -690,7 +708,7 @@ export const DashboardView: React.FC = () => {
                     <p className={`text-xs sm:text-sm font-extrabold num-tabular ${
                       isIncome ? 'text-[#10B981]' : isSavings ? 'text-[#FF5330]' : 'text-[#18181B]'
                     }`}>
-                      {isIncome ? '+' : '-'}{formatCurrency(tx.amount)}
+                      {isIncome || isSavings ? '+' : '-'}{formatCurrency(tx.amount)}
                     </p>
                     <span className="text-[10px] text-[#A1A1AA]">{tx.account}</span>
                   </div>

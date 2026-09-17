@@ -37,14 +37,18 @@ export const getSavingsGoal = async (goalId: string, userId: string) => {
  * Créer un objectif d'épargne
  */
 export const createUserSavingsGoal = async (userId: string, data: CreateSavingsGoalInput) => {
-  // La deadline reste en format string (comme dans Prisma)
   return createSavingsGoal({
     userId,
     title: data.title,
     targetAmount: data.targetAmount,
-    deadline: data.deadline, // String directement
-    icon: data.icon,
-    color: data.color,
+    deadline: data.deadline || '',
+    icon: data.icon || 'PiggyBank',
+    color: data.color || '#FF5330',
+    description: data.description,
+    checkboxesCount: data.checkboxesCount || 10,
+    checkedBoxes: data.checkedBoxes || [],
+    isAutoSaveActive: data.isAutoSaveActive || false,
+    autoSaveAmount: data.autoSaveAmount || null,
   });
 };
 

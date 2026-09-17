@@ -261,7 +261,7 @@ export const api = {
   // Savings Goals
   savings: {
     getAll: async () => {
-      return apiRequest<any[]>('/savings-goals');
+      return apiRequest<any>('/savings-goals');
     },
 
     create: async (payload: { title: string; targetAmount: number; deadline: string; icon: string; color: string; description?: string }) => {

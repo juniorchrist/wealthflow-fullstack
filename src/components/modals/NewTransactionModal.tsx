@@ -4,13 +4,22 @@ import { useWealth } from '../../context/WealthContext';
 import { TransactionType } from '../../types';
 
 export const NewTransactionModal: React.FC = () => {
-  const { isNewTransactionModalOpen, setIsNewTransactionModalOpen, categories, addTransaction } =
-    useWealth();
+  const {
+    isNewTransactionModalOpen,
+    setIsNewTransactionModalOpen,
+    categories,
+    savingsGoals,
+    addTransaction,
+    contributeToGoal,
+    addSavingsGoal,
+    formatCurrency,
+  } = useWealth();
 
   const [title, setTitle] = useState('');
   const [amount, setAmount] = useState('');
   const [type, setType] = useState<TransactionType>('expense');
   const [categoryId, setCategoryId] = useState('');
+  const [selectedGoalId, setSelectedGoalId] = useState<string>('new');
   const [account, setAccount] = useState('Compte principal');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [notes, setNotes] = useState('');
@@ -22,25 +31,48 @@ export const NewTransactionModal: React.FC = () => {
     const numAmount = Number(amount);
     if (!title.trim() || numAmount <= 0) return;
 
-    const matchedCat = categories.find((c) => c.id === categoryId);
-    const categoryName = matchedCat ? matchedCat.name : type === 'income' ? 'Revenus' : 'Divers';
+    if (type === 'savings_deposit') {
+      const existingGoal = savingsGoals.find((g) => g.id === selectedGoalId);
 
-    addTransaction({
-      title: title.trim(),
-      amount: numAmount,
-      type,
-      category: categoryName,
-      categoryId: categoryId || (matchedCat ? matchedCat.id : 'cat-1'),
-      account,
-      date,
-      time: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
-      notes: notes.trim() || undefined,
-    });
+      if (existingGoal) {
+        // Faire un versement sur la tirelire existante
+        contributeToGoal(existingGoal.id, numAmount);
+      } else {
+        // Créer une nouvelle tirelire (Savings Goal) et y déposer le montant
+        addSavingsGoal(
+          {
+            title: title.trim(),
+            targetAmount: Math.max(numAmount * 2, numAmount),
+            deadline: 'Déc. 2026',
+            icon: 'PiggyBank',
+            color: '#FF5330',
+            description: notes.trim() || 'Tirelire d\'épargne',
+          },
+          numAmount
+        );
+      }
+    } else {
+      const matchedCat = categories.find((c) => c.id === categoryId);
+      const categoryName = matchedCat ? matchedCat.name : type === 'income' ? 'Revenus' : 'Divers';
+
+      addTransaction({
+        title: title.trim(),
+        amount: numAmount,
+        type,
+        category: categoryName,
+        categoryId: categoryId || (matchedCat ? matchedCat.id : 'cat-1'),
+        account,
+        date,
+        time: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+        notes: notes.trim() || undefined,
+      });
+    }
 
     // Reset and close
     setTitle('');
     setAmount('');
     setNotes('');
+    setSelectedGoalId('new');
     setIsNewTransactionModalOpen(false);
   };
 
@@ -144,27 +176,45 @@ export const NewTransactionModal: React.FC = () => {
               required
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Ex: Supermarché, Salaire, Facture..."
+              placeholder={type === 'savings_deposit' ? "Ex: Pour mon école, Voiture, Urgences..." : "Ex: Supermarché, Salaire, Facture..."}
               className="w-full p-2 bg-[#F7F7F7] border border-[#E8E8E8] rounded-lg text-xs font-semibold text-[#18181B] focus:outline-none focus:border-[#FF5330]"
             />
           </div>
 
-          {/* Category */}
-          <div>
-            <label className="text-[10px] font-bold text-[#18181B] block mb-1">Catégorie</label>
-            <select
-              value={categoryId}
-              onChange={(e) => setCategoryId(e.target.value)}
-              className="w-full p-2 bg-[#F7F7F7] border border-[#E8E8E8] rounded-lg text-[10px] font-semibold text-[#18181B] focus:outline-none focus:border-[#FF5330]"
-            >
-              <option value="">Sélectionner...</option>
-              {availableCategories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          {/* Category / Goal Selection */}
+          {type === 'savings_deposit' ? (
+            <div>
+              <label className="text-[10px] font-bold text-[#18181B] block mb-1">Tirelire / Objectif d'épargne</label>
+              <select
+                value={selectedGoalId}
+                onChange={(e) => setSelectedGoalId(e.target.value)}
+                className="w-full p-2 bg-[#F7F7F7] border border-[#E8E8E8] rounded-lg text-[10px] font-semibold text-[#18181B] focus:outline-none focus:border-[#FF5330]"
+              >
+                <option value="new">+ Créer une nouvelle tirelire ({title || 'Nouvel objectif'})</option>
+                {savingsGoals.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.title} ({formatCurrency(g.currentAmount)})
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <div>
+              <label className="text-[10px] font-bold text-[#18181B] block mb-1">Catégorie</label>
+              <select
+                value={categoryId}
+                onChange={(e) => setCategoryId(e.target.value)}
+                className="w-full p-2 bg-[#F7F7F7] border border-[#E8E8E8] rounded-lg text-[10px] font-semibold text-[#18181B] focus:outline-none focus:border-[#FF5330]"
+              >
+                <option value="">Sélectionner...</option>
+                {availableCategories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Date & Notes */}
           <div className="grid grid-cols-2 gap-1.5">

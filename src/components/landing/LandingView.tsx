@@ -22,6 +22,7 @@ import {
 import { BrandLogo } from '../common/BrandLogo';
 import { useWealth } from '../../context/WealthContext';
 import { AdminLoginModal } from '../admin/AdminLoginModal';
+import { LegalView } from '../legal/LegalView';
 
 export const LandingView: React.FC = () => {
   const { setIsAuthModalOpen, setAuthModalMode } = useWealth();
@@ -29,6 +30,7 @@ export const LandingView: React.FC = () => {
   const [adminLockHovered, setAdminLockHovered] = useState(false);
   const [adminLoginOpen, setAdminLoginOpen] = useState(false);
   const [contactModalOpen, setContactModalOpen] = useState(false);
+  const [legalModalOpen, setLegalModalOpen] = useState(false);
   const [supportEmail, setSupportEmail] = useState('support@wealthflow.app');
 
   useEffect(() => {
@@ -517,8 +519,30 @@ export const LandingView: React.FC = () => {
             <div>
               <h4 className="text-xs font-bold text-[#18181B] uppercase tracking-wider mb-3">Légal</h4>
               <ul className="space-y-2">
-                <li><span className="text-xs text-[#6F6F73]">Conditions d'utilisation</span></li>
-                <li><span className="text-xs text-[#6F6F73]">Politique de confidentialité</span></li>
+                <li>
+                  <button
+                    onClick={() => setLegalModalOpen(true)}
+                    className="text-xs text-[#6F6F73] hover:text-[#FF5330] transition-colors cursor-pointer text-left"
+                  >
+                    Conditions d'utilisation
+                  </button>
+                </li>
+                <li>
+                  <button
+                    onClick={() => setLegalModalOpen(true)}
+                    className="text-xs text-[#6F6F73] hover:text-[#FF5330] transition-colors cursor-pointer text-left"
+                  >
+                    Politique de confidentialité
+                  </button>
+                </li>
+                <li>
+                  <button
+                    onClick={() => setLegalModalOpen(true)}
+                    className="text-xs font-bold text-[#FF5330] hover:underline transition-colors cursor-pointer text-left"
+                  >
+                    FAQ
+                  </button>
+                </li>
               </ul>
             </div>
 
@@ -664,6 +688,28 @@ export const LandingView: React.FC = () => {
             <p className="text-center text-[11px] text-[#A1A1AA]">
               Notre équipe répond généralement en moins de 24h.
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* ===== MODAL LÉGAL & FAQ ===== */}
+      {legalModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in"
+          onClick={() => setLegalModalOpen(false)}
+        >
+          <div
+            className="relative z-10 w-full max-w-4xl bg-white rounded-3xl shadow-2xl border border-[#E8E8E8] max-h-[90vh] overflow-y-auto p-4 sm:p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setLegalModalOpen(false)}
+              className="absolute top-4 right-4 w-8 h-8 rounded-full bg-[#F7F7F7] flex items-center justify-center text-[#6F6F73] hover:text-[#18181B] transition-colors cursor-pointer z-10"
+              aria-label="Fermer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <LegalView />
           </div>
         </div>
       )}

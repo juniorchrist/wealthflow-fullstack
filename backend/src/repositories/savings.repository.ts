@@ -6,16 +6,26 @@ export interface CreateSavingsGoalData {
   title: string;
   targetAmount: number;
   deadline: string;
-  icon: string;
-  color: string;
+  icon?: string;
+  color?: string;
+  description?: string | null;
+  checkboxesCount?: number;
+  checkedBoxes?: any;
+  isAutoSaveActive?: boolean;
+  autoSaveAmount?: number | null;
 }
 
 export interface UpdateSavingsGoalData {
   title?: string;
   targetAmount?: number;
-  deadline?: string; // Format String dans Prisma
+  deadline?: string;
   icon?: string;
   color?: string;
+  description?: string | null;
+  checkboxesCount?: number;
+  checkedBoxes?: any;
+  isAutoSaveActive?: boolean;
+  autoSaveAmount?: number | null;
 }
 
 /**
@@ -77,12 +87,21 @@ export const getSavingsGoalById = async (goalId: string, userId: string) => {
   };
 };
 
-/**
- * Créer un objectif d'épargne
- */
 export const createSavingsGoal = async (data: CreateSavingsGoalData): Promise<SavingsGoal> => {
   return prisma.savingsGoal.create({
-    data,
+    data: {
+      userId: data.userId,
+      title: data.title,
+      targetAmount: data.targetAmount,
+      deadline: data.deadline || '',
+      icon: data.icon || 'PiggyBank',
+      color: data.color || '#FF5330',
+      description: data.description || null,
+      checkboxesCount: data.checkboxesCount || 10,
+      checkedBoxes: data.checkedBoxes || [],
+      isAutoSaveActive: data.isAutoSaveActive || false,
+      autoSaveAmount: data.autoSaveAmount || null,
+    },
   });
 };
 

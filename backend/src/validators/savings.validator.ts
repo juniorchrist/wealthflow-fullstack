@@ -14,13 +14,33 @@ export const createSavingsGoalSchema = z.object({
       .positive('Le montant cible doit être positif'),
     deadline: z
       .string()
-      .regex(/^\d{4}-\d{2}-\d{2}$/, 'La date limite doit être au format YYYY-MM-DD'),
+      .optional()
+      .default(''),
     icon: z
       .string()
-      .min(1, 'L\'icône est requise'),
+      .optional()
+      .default('PiggyBank'),
     color: z
       .string()
-      .min(1, 'La couleur est requise'),
+      .optional()
+      .default('#FF5330'),
+    description: z
+      .string()
+      .optional()
+      .nullable(),
+    checkboxesCount: z
+      .number()
+      .optional(),
+    checkedBoxes: z
+      .array(z.number())
+      .optional(),
+    isAutoSaveActive: z
+      .boolean()
+      .optional(),
+    autoSaveAmount: z
+      .number()
+      .optional()
+      .nullable(),
   }),
 });
 
@@ -43,7 +63,6 @@ export const updateSavingsGoalSchema = z.object({
       .optional(),
     deadline: z
       .string()
-      .regex(/^\d{4}-\d{2}-\d{2}$/, 'La date limite doit être au format YYYY-MM-DD')
       .optional(),
     icon: z
       .string()
@@ -51,6 +70,23 @@ export const updateSavingsGoalSchema = z.object({
     color: z
       .string()
       .optional(),
+    description: z
+      .string()
+      .optional()
+      .nullable(),
+    checkboxesCount: z
+      .number()
+      .optional(),
+    checkedBoxes: z
+      .array(z.number())
+      .optional(),
+    isAutoSaveActive: z
+      .boolean()
+      .optional(),
+    autoSaveAmount: z
+      .number()
+      .optional()
+      .nullable(),
   }),
 });
 
@@ -67,8 +103,11 @@ export const addDepositSchema = z.object({
       .positive('Le montant doit être positif'),
     date: z
       .string()
-      .regex(/^\d{4}-\d{2}-\d{2}$/, 'La date doit être au format YYYY-MM-DD')
       .optional(),
+    notes: z
+      .string()
+      .optional()
+      .nullable(),
   }),
 });
 
@@ -77,3 +116,4 @@ export type CreateSavingsGoalInput = z.infer<typeof createSavingsGoalSchema>['bo
 export type UpdateSavingsGoalInput = z.infer<typeof updateSavingsGoalSchema>['body'];
 export type SavingsGoalParams = z.infer<typeof updateSavingsGoalSchema>['params'];
 export type AddDepositInput = z.infer<typeof addDepositSchema>['body'];
+

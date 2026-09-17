@@ -207,12 +207,12 @@ export const LegalView: React.FC = () => {
           onClick={() => setActiveTabLegal('faq')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-colors cursor-pointer whitespace-nowrap ${
             activeTabLegal === 'faq'
-              ? 'bg-[#18181B] text-white shadow-xs'
+              ? 'bg-[#FF5330] text-white shadow-xs'
               : 'bg-[#F7F7F7] text-[#71717A] hover:bg-[#EAEAEA]'
           }`}
         >
           <HelpCircle className="w-4 h-4" />
-          <span>Foire Aux Questions (FAQ)</span>
+          <span>FAQ</span>
         </button>
       </div>
 
@@ -228,7 +228,7 @@ export const LegalView: React.FC = () => {
               <div className="space-y-3">
                 <div className="pb-4 mb-5 border-b border-[#F4F4F5]">
                   <h2 className="text-lg font-black text-[#18181B] mb-1">
-                    Questions Fréquentes (FAQ)
+                    Foire Aux Questions (FAQ)
                   </h2>
                   <p className="text-xs text-[#71717A]">
                     Réponses aux questions les plus courantes sur WealthFlow

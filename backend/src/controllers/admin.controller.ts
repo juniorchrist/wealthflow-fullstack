@@ -123,7 +123,7 @@ export const listAdminUsersHandler = async (
         .filter((t) => t.type === 'expense')
         .reduce((sum, t) => sum + Number(t.amount || 0), 0);
 
-      const savings = (u.savingsGoals || []).reduce(
+      const savingsFromDeposits = (u.savingsGoals || []).reduce(
         (sum: number, g: any) =>
           sum +
           (g.deposits || []).reduce(
@@ -132,6 +132,12 @@ export const listAdminUsersHandler = async (
           ),
         0
       );
+
+      const savingsFromTx = u.transactions
+        .filter((t) => t.type === 'savings_deposit')
+        .reduce((sum, t) => sum + Number(t.amount || 0), 0);
+
+      const savings = Math.max(savingsFromDeposits, savingsFromTx);
 
       const budgetTotal = u.budgets.reduce(
         (sum, b) => sum + Number(b.totalBudget || 0),

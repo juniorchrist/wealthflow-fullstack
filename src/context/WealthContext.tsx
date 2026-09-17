@@ -1,12 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
-import {
-  initialCategories,
-  initialChartData,
-  initialNotifications,
-  initialSavingsGoals,
-  initialTransactions,
-  initialUserProfile,
-} from '../data/initialData';
+import { initialUserProfile, initialChartData } from '../data/initialData';
 import { ActiveTab, AdminUser, AppRoute, Category, MonthlyChartData, NotificationItem, SavingsGoal, Transaction, UserProfile } from '../types';
 import { api, getAuthToken, clearAuthTokens } from '../services/api';
 
@@ -67,6 +60,8 @@ interface WealthContextType {
   loadingMessage: string;
   simulateLoading: (message?: string) => void;
   finishLoading: () => void;
+  isDataLoading: boolean;
+  dataLoadError: string | null;
   
   // Auth Modal
   isAuthModalOpen: boolean;
@@ -180,41 +175,13 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
 
 
-  const [transactions, setTransactions] = useState<Transaction[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.TRANSACTIONS);
-      return saved ? JSON.parse(saved) : initialTransactions;
-    } catch {
-      return initialTransactions;
-    }
-  });
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
 
-  const [savingsGoals, setSavingsGoals] = useState<SavingsGoal[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.GOALS);
-      return saved ? JSON.parse(saved) : initialSavingsGoals;
-    } catch {
-      return initialSavingsGoals;
-    }
-  });
+  const [savingsGoals, setSavingsGoals] = useState<SavingsGoal[]>([]);
 
-  const [categories, setCategories] = useState<Category[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.CATEGORIES);
-      return saved ? JSON.parse(saved) : initialCategories;
-    } catch {
-      return initialCategories;
-    }
-  });
+  const [categories, setCategories] = useState<Category[]>([]);
 
-  const [notifications, setNotifications] = useState<NotificationItem[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS);
-      return saved ? JSON.parse(saved) : initialNotifications;
-    } catch {
-      return initialNotifications;
-    }
-  });
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
 
   // Lock Screen: If authenticated and pin is enabled, start locked on reload
   const [isLocked, setIsLocked] = useState<boolean>(() => {
@@ -224,6 +191,8 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [loadingMessage, setLoadingMessage] = useState<string>('Chargement de votre espace...');
+  const [isDataLoading, setIsDataLoading] = useState<boolean>(false);
+  const [dataLoadError, setDataLoadError] = useState<string | null>(null);
 
   const finishLoading = () => {
     setIsLoading(false);
@@ -246,11 +215,14 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const token = getAuthToken();
     if (!token) return;
 
+    setIsDataLoading(true);
+    setDataLoadError(null);
+
     try {
       // 1. Profil
       const profileRes = await api.auth.me();
       if (profileRes.success && profileRes.data) {
-        const u = profileRes.data;
+        const u = profileRes.data.user || profileRes.data;
         setUserProfile((prev) => ({
           ...prev,
           name: `${u.prenom || ''} ${u.nom || ''}`.trim() || prev.name,
@@ -261,8 +233,19 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           timezone: u.timezone || prev.timezone,
           dateFormat: u.dateFormat || prev.dateFormat,
           plan: u.plan || prev.plan,
+          role: u.role || prev.role || 'user',
           isPinEnabled: u.isPinEnabled ?? prev.isPinEnabled,
         }));
+      } else if (
+        profileRes.message?.includes('introuvable') ||
+        profileRes.message?.includes('supprimé') ||
+        profileRes.message?.includes('banni') ||
+        profileRes.error?.code === 'ACCOUNT_NOT_FOUND' ||
+        profileRes.error?.code === 'ACCOUNT_BANNED'
+      ) {
+        console.warn('[WealthFlow] Compte révoqué ou banni par l’administrateur. Déconnexion automatique.');
+        logout();
+        return;
       }
 
       // 2. Comptes bancaires
@@ -274,8 +257,9 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
       // 3. Transactions
       const txRes = await api.transactions.getAll({ limit: 100 });
-      if (txRes.success && txRes.data?.transactions) {
-        const remoteTxs: Transaction[] = txRes.data.transactions.map((t: any) => ({
+      const txData = txRes.data?.transactions || (Array.isArray(txRes.data) ? txRes.data : null);
+      if (txRes.success && Array.isArray(txData)) {
+        const remoteTxs: Transaction[] = txData.map((t: any) => ({
           id: t.id,
           title: t.title,
           amount: t.amount,
@@ -288,12 +272,16 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           notes: t.notes || '',
         }));
         setTransactions(remoteTxs);
+      } else if (!txRes.success) {
+        console.warn('[WealthFlow API] Erreur lors du chargement des transactions:', txRes.message);
+        setDataLoadError(txRes.message || 'Erreur lors de la récupération des transactions');
       }
 
       // 4. Catégories
       const catRes = await api.categories.getAll();
-      if (catRes.success && Array.isArray(catRes.data) && catRes.data.length > 0) {
-        const remoteCats: Category[] = catRes.data.map((c: any) => ({
+      const catData = catRes.data?.categories || catRes.data;
+      if (catRes.success && Array.isArray(catData) && catData.length > 0) {
+        const remoteCats: Category[] = catData.map((c: any) => ({
           id: c.id,
           name: c.name,
           icon: c.icon || 'Tag',
@@ -302,32 +290,41 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           type: c.type as 'expense' | 'income',
         }));
         setCategories(remoteCats);
+      } else if (!catRes.success) {
+        console.warn('[WealthFlow API] Erreur lors du chargement des catégories:', catRes.message);
       }
 
       // 5. Objectifs d'épargne
       const goalsRes = await api.savings.getAll();
-      if (goalsRes.success && goalsRes.data?.goals && Array.isArray(goalsRes.data.goals)) {
-        const remoteGoals: SavingsGoal[] = goalsRes.data.goals.map((g: any) => ({
-          id: g.id,
-          title: g.title,
-          targetAmount: g.targetAmount,
-          currentAmount: g.currentAmount || 0,
-          deadline: g.deadline || '',
-          icon: g.icon || 'Target',
-          color: g.color || '#3B82F6',
-          description: g.description || '',
-          isAutoSaveActive: g.isAutoSaveActive || false,
-          autoSaveAmount: g.autoSaveAmount || undefined,
-          checkboxesCount: g.checkboxesCount || 10,
-          checkedBoxes: g.checkedBoxes || [],
-        }));
-        setSavingsGoals(remoteGoals);
+      if (goalsRes.success && goalsRes.data) {
+        const goalsData = goalsRes.data.goals || (Array.isArray(goalsRes.data) ? goalsRes.data : null);
+        if (Array.isArray(goalsData)) {
+          const remoteGoals: SavingsGoal[] = goalsData.map((g: any) => ({
+            id: g.id,
+            title: g.title,
+            targetAmount: g.targetAmount,
+            currentAmount: g.currentAmount || 0,
+            deadline: g.deadline || '',
+            icon: g.icon || 'Target',
+            color: g.color || '#3B82F6',
+            description: g.description || '',
+            isAutoSaveActive: g.isAutoSaveActive || false,
+            autoSaveAmount: g.autoSaveAmount || undefined,
+            checkboxesCount: g.checkboxesCount || 10,
+            checkedBoxes: g.checkedBoxes || [],
+          }));
+          setSavingsGoals(remoteGoals);
+        }
+      } else if (!goalsRes.success) {
+        console.warn('[WealthFlow API] Erreur lors du chargement des objectifs d\'épargne:', goalsRes.message);
+        setDataLoadError(goalsRes.message || 'Erreur lors de la récupération des objectifs d\'épargne');
       }
 
       // 6. Notifications
       const notifRes = await api.notifications.getAll();
-      if (notifRes.success && Array.isArray(notifRes.data)) {
-        const remoteNotifs: NotificationItem[] = notifRes.data.map((n: any) => ({
+      const notifData = notifRes.data?.notifications || notifRes.data;
+      if (notifRes.success && Array.isArray(notifData)) {
+        const remoteNotifs: NotificationItem[] = notifData.map((n: any) => ({
           id: n.id,
           title: n.title,
           message: n.message,
@@ -336,9 +333,14 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           type: (n.type as any) || 'info',
         }));
         setNotifications(remoteNotifs);
+      } else if (!notifRes.success) {
+        console.warn('[WealthFlow API] Erreur lors du chargement des notifications:', notifRes.message);
       }
-    } catch (err) {
-      console.warn('[WealthFlow API] Erreur lors du chargement des données distantes:', err);
+    } catch (err: any) {
+      console.error('[WealthFlow API] Erreur critique lors du chargement des données distantes:', err);
+      setDataLoadError(err.message || 'Impossible de joindre le serveur. Vérifiez votre connexion.');
+    } finally {
+      setIsDataLoading(false);
     }
   }, []);
 
@@ -351,16 +353,8 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // Auth methods
   const login = async (credentials?: { email?: string; name?: string; pinCode?: string; role?: string }) => {
-    // Récupérer le rôle réel depuis l'API
-    let userRole = 'user';
-    try {
-      const profileRes = await api.auth.me();
-      if (profileRes.success && profileRes.data?.user) {
-        userRole = profileRes.data.user.role || 'user';
-      }
-    } catch (err) {
-      console.warn('[WealthFlow] Impossible de récupérer le rôle utilisateur');
-    }
+    // Utiliser le rôle passé depuis l'API login (source de vérité)
+    const userRole = credentials?.role || 'user';
 
     const updated = {
       ...userProfile,
@@ -375,17 +369,18 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
     setIsAuthenticated(true);
     localStorage.setItem(STORAGE_KEYS.SESSION, 'true');
-    
-    // Redirection basée sur le rôle réel
+
+    // Redirection basée sur le rôle réel depuis l'API
     if (userRole === 'admin') {
       setIsAdminAuthenticated(true);
       setCurrentRoute('app');
       setActiveTab('admin');
     } else {
+      setIsAdminAuthenticated(false);
       setCurrentRoute('app');
       setActiveTab('dashboard');
     }
-    
+
     setIsLocked(false);
     refreshRemoteData();
   };
@@ -464,21 +459,7 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(userProfile));
   }, [userProfile]);
 
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(transactions));
-  }, [transactions]);
 
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.GOALS, JSON.stringify(savingsGoals));
-  }, [savingsGoals]);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.CATEGORIES, JSON.stringify(categories));
-  }, [categories]);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(notifications));
-  }, [notifications]);
 
   // Calculations réelles basées uniquement sur les opérations effectives
   const totalIncome = transactions
@@ -494,7 +475,8 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     .filter((t) => t.type === 'savings_deposit')
     .reduce((acc, curr) => acc + curr.amount, 0);
 
-  const totalSaved = savingsGoals.reduce((acc, curr) => acc + curr.currentAmount, 0);
+  const totalSavedFromGoals = savingsGoals.reduce((acc, curr) => acc + curr.currentAmount, 0);
+  const totalSaved = Math.max(totalSavedFromGoals, totalSavingsDeposits);
 
   // Solde disponible réel : Revenus totaux - Dépenses totales - Épargnes placées
   // Les épargnes sont de l'argent mis de côté, donc non disponible pour les dépenses courantes
@@ -685,10 +667,11 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         notes: newTx.notes,
       });
 
-      if (res.success && res.data?.id) {
+      const realId = res.data?.transaction?.id || res.data?.id;
+      if (res.success && realId) {
         // Mettre à jour l'ID temporaire avec l'ID réel renvoyé par Supabase
         setTransactions((prev) =>
-          prev.map((t) => (t.id === tempId ? { ...t, id: res.data.id } : t))
+          prev.map((t) => (t.id === tempId ? { ...t, id: realId } : t))
         );
       }
     } catch (err) {
@@ -716,16 +699,6 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // Savings Goal CRUD connecté à l'API Backend
   const addSavingsGoal = async (goal: Omit<SavingsGoal, 'id' | 'currentAmount'>, initialDeposit?: number) => {
-    const tempId = `goal-${Date.now()}`;
-    const newGoal: SavingsGoal = {
-      ...goal,
-      id: tempId,
-      currentAmount: 0,
-      checkboxesCount: goal.checkboxesCount || 10,
-      checkedBoxes: [],
-    };
-    setSavingsGoals((prev) => [...prev, newGoal]);
-
     try {
       const res = await api.savings.create({
         title: goal.title,
@@ -736,15 +709,14 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         description: goal.description,
       });
 
-      if (res.success && res.data?.goal?.id) {
-        const realId = res.data.goal.id;
-        setSavingsGoals((prev) =>
-          prev.map((g) => (g.id === tempId ? { ...g, id: realId } : g))
-        );
+      const createdGoalId = res.data?.goal?.id || res.data?.id;
+      if (res.success) {
+        // Rafraîchir les données pour obtenir le nouvel objectif
+        await refreshRemoteData();
 
         // Si un dépôt initial est spécifié, le faire automatiquement
-        if (initialDeposit && initialDeposit > 0) {
-          await contributeToGoal(realId, initialDeposit);
+        if (initialDeposit && initialDeposit > 0 && createdGoalId) {
+          await contributeToGoal(createdGoalId, initialDeposit);
         }
       }
     } catch (err) {
@@ -771,43 +743,23 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const contributeToGoal = async (id: string, amount: number) => {
-    setSavingsGoals((prev) =>
-      prev.map((g) => {
-        if (g.id === id) {
-          const updatedAmount = Math.min(g.targetAmount, g.currentAmount + amount);
-          return { ...g, currentAmount: updatedAmount };
-        }
-        return g;
-      })
-    );
-
     try {
-      await api.savings.deposit(id, {
+      const res = await api.savings.deposit(id, {
         amount,
         date: new Date().toISOString(),
       });
+
+      if (res.success) {
+        // Le backend crée déjà la transaction et le dépôt, on rafraîchit les données
+        await refreshRemoteData();
+      }
     } catch (err) {
       console.warn('[WealthFlow API] Erreur lors du dépôt d\'épargne:', err);
     }
-
-    // Also record as transaction
-    const targetGoal = savingsGoals.find((g) => g.id === id);
-    if (targetGoal) {
-      addTransaction({
-        title: `Contribution: ${targetGoal.title}`,
-        category: 'Épargne & Investissement',
-        categoryId: 'cat-6',
-        amount,
-        type: 'savings_deposit',
-        account: 'Compte principal',
-        date: new Date().toISOString().split('T')[0],
-        time: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
-        notes: `Ajout vers l'objectif ${targetGoal.title}`,
-      });
-    }
   };
 
-  const toggleGoalCheckbox = (goalId: string, boxIndex: number) => {
+  const toggleGoalCheckbox = async (goalId: string, boxIndex: number) => {
+    let updatedCheckedBoxes: number[] = [];
     setSavingsGoals((prev) =>
       prev.map((goal) => {
         if (goal.id !== goalId) return goal;
@@ -821,22 +773,39 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           checked.add(boxIndex);
         }
 
-        const newCheckedBoxes = Array.from(checked);
-        const calculatedAmount = Math.min(goal.targetAmount, Math.round(newCheckedBoxes.length * unitValue));
+        updatedCheckedBoxes = Array.from(checked);
+        const calculatedAmount = Math.min(goal.targetAmount, Math.round(updatedCheckedBoxes.length * unitValue));
 
         return {
           ...goal,
-          checkedBoxes: newCheckedBoxes,
+          checkedBoxes: updatedCheckedBoxes,
           currentAmount: calculatedAmount,
         };
       })
     );
+
+    try {
+      await api.savings.update(goalId, { checkedBoxes: updatedCheckedBoxes });
+    } catch (err) {
+      console.warn('[WealthFlow API] Erreur mise à jour cases épargne:', err);
+    }
   };
 
-  const toggleGoalAutoSave = (goalId: string) => {
+  const toggleGoalAutoSave = async (goalId: string) => {
+    let nextState = false;
     setSavingsGoals((prev) =>
-      prev.map((g) => (g.id === goalId ? { ...g, isAutoSaveActive: !g.isAutoSaveActive } : g))
+      prev.map((g) => {
+        if (g.id !== goalId) return g;
+        nextState = !g.isAutoSaveActive;
+        return { ...g, isAutoSaveActive: nextState };
+      })
     );
+
+    try {
+      await api.savings.update(goalId, { isAutoSaveActive: nextState });
+    } catch (err) {
+      console.warn('[WealthFlow API] Erreur mise à jour épargne auto:', err);
+    }
   };
 
   // Category CRUD connecté à l'API Backend
@@ -857,9 +826,10 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         type: cat.type,
       });
 
-      if (res.success && res.data?.id) {
+      const realCatId = res.data?.category?.id || res.data?.id;
+      if (res.success && realCatId) {
         setCategories((prev) =>
-          prev.map((c) => (c.id === tempId ? { ...c, id: res.data.id } : c))
+          prev.map((c) => (c.id === tempId ? { ...c, id: realCatId } : c))
         );
       }
     } catch (err) {
@@ -887,7 +857,7 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // Distribute budgets automatically based on totalIncome
   // Uses a simplified 50/30/20 split across expense categories, weighted by existing limits
-  const autoDistributeBudgets = (incomeBase: number) => {
+  const autoDistributeBudgets = async (incomeBase: number) => {
     const expenseCats = categories.filter((c) => c.type === 'expense');
     if (expenseCats.length === 0) return;
 
@@ -895,13 +865,24 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const allocatable = Math.round(incomeBase * 0.7);
     const totalExistingLimits = expenseCats.reduce((s, c) => s + (c.budgetLimit || 1), 0);
 
-    setCategories((prev) =>
-      prev.map((c) => {
-        if (c.type !== 'expense') return c;
-        const weight = (c.budgetLimit || 1) / totalExistingLimits;
-        return { ...c, budgetLimit: Math.round(allocatable * weight) };
-      })
-    );
+    const updatedCategories = categories.map((c) => {
+      if (c.type !== 'expense') return c;
+      const weight = (c.budgetLimit || 1) / totalExistingLimits;
+      return { ...c, budgetLimit: Math.round(allocatable * weight) };
+    });
+
+    setCategories(updatedCategories);
+
+    // Synchroniser chaque limite de budget modifiée vers le backend Supabase
+    for (const c of updatedCategories) {
+      if (c.type === 'expense') {
+        try {
+          await api.categories.update(c.id, { budgetLimit: c.budgetLimit });
+        } catch (err) {
+          console.warn('[WealthFlow API] Erreur sync budget auto:', err);
+        }
+      }
+    }
   };
 
   // Notification CRUD connecté à l'API Backend
@@ -981,10 +962,10 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // Reset & Export
   const resetAllData = () => {
     setUserProfile(initialUserProfile);
-    setTransactions(initialTransactions);
-    setSavingsGoals(initialSavingsGoals);
-    setCategories(initialCategories);
-    setNotifications(initialNotifications);
+    setTransactions([]);
+    setSavingsGoals([]);
+    setCategories([]);
+    setNotifications([]);
     localStorage.clear();
   };
 
@@ -1051,7 +1032,7 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         markNotificationAsRead,
         markAllNotificationsAsRead,
         deleteNotification,
-        chartData: initialChartData,
+        chartData: [],
         isLocked,
         unlockWithPin,
         lockApp,
@@ -1060,6 +1041,8 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         loadingMessage,
         simulateLoading,
         finishLoading,
+        isDataLoading,
+        dataLoadError,
         totalBalance,
         totalIncome,
         totalExpenses,

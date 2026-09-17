@@ -11,7 +11,6 @@ import {
   Send,
   Shield,
   ShieldAlert,
-  Sparkles,
 } from 'lucide-react';
 import { useWealth } from '../../context/WealthContext';
 import { api } from '../../services/api';
@@ -155,7 +154,7 @@ export const HelpCenterView: React.FC = () => {
               Centre d'Aide & Assistance
             </h1>
             <p className="text-xs text-[#71717A]">
-              Support technique, motifs de suspension et foire aux questions
+              Support technique et motifs de suspension
             </p>
           </div>
         </div>
