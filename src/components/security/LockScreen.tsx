@@ -156,18 +156,7 @@ export const LockScreen: React.FC = () => {
             </button>
           ))}
 
-          {/* Bottom row: Biometric, 0, Backspace */}
-          <button
-            onClick={handleBiometricUnlock}
-            disabled={isBiometricScanning}
-            className={`w-16 h-14 sm:w-[72px] sm:h-[60px] rounded-2xl bg-[#FF5330]/10 hover:bg-[#FF5330]/20 border border-[#FF5330]/25 text-[#FF5330] flex flex-col items-center justify-center transition-all cursor-pointer active:scale-90 ${
-              isBiometricScanning ? 'animate-pulse' : ''
-            }`}
-            title="Déverrouillage rapide"
-          >
-            <Fingerprint className="w-5 h-5" />
-            <span className="text-[8px] font-bold mt-0.5">Rapide</span>
-          </button>
+          {/* Bottom row: 0, Backspace */}
 
           <button
             onClick={() => handleKeyPress('0')}

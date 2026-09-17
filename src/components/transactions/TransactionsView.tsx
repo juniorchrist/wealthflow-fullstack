@@ -14,6 +14,8 @@ import { useWealth } from '../../context/WealthContext';
 import { Transaction } from '../../types';
 import { CategoryIcon } from '../common/CategoryIcon';
 import { BottomSheet } from '../common/BottomSheet';
+import { MonthSelector } from '../common/MonthSelector';
+import { MonthlyCalendarModal } from '../common/MonthlyCalendarModal';
 
 export const TransactionsView: React.FC = () => {
   const {
@@ -36,6 +38,12 @@ export const TransactionsView: React.FC = () => {
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
   const [selectedTxDetails, setSelectedTxDetails] = useState<Transaction | null>(null);
 
+  // Filtre par mois & année
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
+  const [isMonthFilterActive, setIsMonthFilterActive] = useState<boolean>(true);
+  const [isCalendarModalOpen, setIsCalendarModalOpen] = useState<boolean>(false);
+
   const itemsPerPage = 10;
 
   const uniqueAccounts = useMemo(() => {
@@ -46,6 +54,11 @@ export const TransactionsView: React.FC = () => {
   const filteredTransactions = useMemo(() => {
     return transactions
       .filter((tx) => {
+        const txDate = new Date(tx.date);
+        const matchesMonth =
+          !isMonthFilterActive ||
+          (txDate.getFullYear() === selectedYear && txDate.getMonth() === selectedMonth);
+
         const matchesQuery =
           !searchQuery ||
           tx.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -57,7 +70,7 @@ export const TransactionsView: React.FC = () => {
           tx.category === selectedCategory;
         const matchesAccount = selectedAccount === 'all' || tx.account === selectedAccount;
         const matchesType = selectedType === 'all' || tx.type === selectedType;
-        return matchesQuery && matchesCategory && matchesAccount && matchesType;
+        return matchesMonth && matchesQuery && matchesCategory && matchesAccount && matchesType;
       })
       .sort((a, b) => {
         if (sortBy === 'date_desc') return new Date(b.date).getTime() - new Date(a.date).getTime();
@@ -66,7 +79,23 @@ export const TransactionsView: React.FC = () => {
         if (sortBy === 'amount_asc') return a.amount - b.amount;
         return 0;
       });
-  }, [transactions, searchQuery, selectedCategory, selectedAccount, selectedType, sortBy]);
+  }, [transactions, isMonthFilterActive, selectedYear, selectedMonth, searchQuery, selectedCategory, selectedAccount, selectedType, sortBy]);
+
+  // Calcul des statistiques cumulées pour le mois sélectionné
+  const monthStats = useMemo(() => {
+    let income = 0;
+    let expenses = 0;
+    let saved = 0;
+    transactions.forEach((tx) => {
+      const d = new Date(tx.date);
+      if (d.getFullYear() === selectedYear && d.getMonth() === selectedMonth) {
+        if (tx.type === 'income') income += tx.amount;
+        if (tx.type === 'expense') expenses += tx.amount;
+        if (tx.type === 'savings_deposit') saved += tx.amount;
+      }
+    });
+    return { income, expenses, saved };
+  }, [transactions, selectedYear, selectedMonth]);
 
   const totalPages = Math.max(1, Math.ceil(filteredTransactions.length / itemsPerPage));
   const paginatedTransactions = filteredTransactions.slice(
@@ -269,21 +298,36 @@ export const TransactionsView: React.FC = () => {
         <p className="text-xs text-[#A1A1AA] mt-0.5">Historique de vos opérations</p>
       </header>
 
-      {/* Stats résumé — visuellement secondaires */}
+      {/* Sélecteur de mois & Calendrier */}
+      <div className="px-4 mb-3">
+        <MonthSelector
+          selectedYear={selectedYear}
+          selectedMonth={selectedMonth}
+          onChange={(y, m) => {
+            setSelectedYear(y);
+            setSelectedMonth(m);
+            setIsMonthFilterActive(true);
+            setCurrentPage(1);
+          }}
+          onOpenCalendarModal={() => setIsCalendarModalOpen(true)}
+        />
+      </div>
+
+      {/* Stats résumé du mois sélectionné */}
       <div className="px-4 mb-4">
         <div className="flex items-stretch gap-3 p-3 rounded-2xl bg-[#F7F7F7]">
           <div className="flex-1 text-center">
-            <p className="text-base font-black text-[#10B981] num-tabular">+{formatCurrency(totalIncome)}</p>
+            <p className="text-base font-black text-[#10B981] num-tabular">+{formatCurrency(isMonthFilterActive ? monthStats.income : totalIncome)}</p>
             <p className="text-[10px] text-[#A1A1AA] mt-0.5">Revenus</p>
           </div>
           <div className="w-px bg-[#E8E8E8]" />
           <div className="flex-1 text-center">
-            <p className="text-base font-black text-[#EF4444] num-tabular">-{formatCurrency(totalExpenses)}</p>
+            <p className="text-base font-black text-[#EF4444] num-tabular">-{formatCurrency(isMonthFilterActive ? monthStats.expenses : totalExpenses)}</p>
             <p className="text-[10px] text-[#A1A1AA] mt-0.5">Dépenses</p>
           </div>
           <div className="w-px bg-[#E8E8E8]" />
           <div className="flex-1 text-center">
-            <p className="text-base font-black text-[#FF5330] num-tabular">{formatCurrency(totalSaved)}</p>
+            <p className="text-base font-black text-[#FF5330] num-tabular">{formatCurrency(isMonthFilterActive ? monthStats.saved : totalSaved)}</p>
             <p className="text-[10px] text-[#A1A1AA] mt-0.5">Épargne</p>
           </div>
         </div>
@@ -396,19 +440,32 @@ export const TransactionsView: React.FC = () => {
         </div>
       </div>
 
-      {/* Stats */}
+      {/* Sélecteur de mois & Calendrier */}
+      <MonthSelector
+        selectedYear={selectedYear}
+        selectedMonth={selectedMonth}
+        onChange={(y, m) => {
+          setSelectedYear(y);
+          setSelectedMonth(m);
+          setIsMonthFilterActive(true);
+          setCurrentPage(1);
+        }}
+        onOpenCalendarModal={() => setIsCalendarModalOpen(true)}
+      />
+
+      {/* Stats du mois sélectionné */}
       <div className="grid grid-cols-3 gap-2">
         <div className="p-2.5 rounded-xl bg-white border border-[#E8E8E8] shadow-2xs space-y-0.5">
-          <p className="text-[10px] font-semibold text-[#6F6F73]">Revenus</p>
-          <p className="text-xs sm:text-sm font-black text-[#10B981] num-tabular truncate">+{formatCurrency(totalIncome)}</p>
+          <p className="text-[10px] font-semibold text-[#6F6F73]">Revenus du mois</p>
+          <p className="text-xs sm:text-sm font-black text-[#10B981] num-tabular truncate">+{formatCurrency(isMonthFilterActive ? monthStats.income : totalIncome)}</p>
         </div>
         <div className="p-2.5 rounded-xl bg-white border border-[#E8E8E8] shadow-2xs space-y-0.5">
-          <p className="text-[10px] font-semibold text-[#6F6F73]">Dépenses</p>
-          <p className="text-xs sm:text-sm font-black text-[#EF4444] num-tabular truncate">-{formatCurrency(totalExpenses)}</p>
+          <p className="text-[10px] font-semibold text-[#6F6F73]">Dépenses du mois</p>
+          <p className="text-xs sm:text-sm font-black text-[#EF4444] num-tabular truncate">-{formatCurrency(isMonthFilterActive ? monthStats.expenses : totalExpenses)}</p>
         </div>
         <div className="p-2.5 rounded-xl bg-white border border-[#E8E8E8] shadow-2xs space-y-0.5">
-          <p className="text-[10px] font-semibold text-[#6F6F73]">Épargne</p>
-          <p className="text-xs sm:text-sm font-black text-[#FF5330] num-tabular truncate">{formatCurrency(totalSaved)}</p>
+          <p className="text-[10px] font-semibold text-[#6F6F73]">Épargne du mois</p>
+          <p className="text-xs sm:text-sm font-black text-[#FF5330] num-tabular truncate">{formatCurrency(isMonthFilterActive ? monthStats.saved : totalSaved)}</p>
         </div>
       </div>
 
@@ -483,6 +540,16 @@ export const TransactionsView: React.FC = () => {
 
       {filterSheet}
       {txDetailsSheet}
+
+      {/* Modal du calendrier mensuel */}
+      <MonthlyCalendarModal
+        isOpen={isCalendarModalOpen}
+        onClose={() => setIsCalendarModalOpen(false)}
+        transactions={transactions}
+        initialYear={selectedYear}
+        initialMonth={selectedMonth}
+        formatCurrency={formatCurrency}
+      />
     </div>
   );
 
