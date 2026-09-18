@@ -430,12 +430,13 @@ export const api = {
   // Admin
   admin: {
     login: async (payload: { identifier: string; password: string }) => {
-      const res = await apiRequest<{ user: any; tokens: { accessToken: string; refreshToken: string } }>('/admin/login', {
+      const res = await apiRequest<any>('/admin/login', {
         method: 'POST',
         body: JSON.stringify(payload),
       });
-      if (res.success && res.data?.tokens) {
-        setAuthToken(res.data.tokens.accessToken, res.data.tokens.refreshToken);
+      const tokens = res.data?.tokens || res.data?.data?.tokens || (res as any)?.tokens;
+      if (res.success && tokens?.accessToken) {
+        setAuthToken(tokens.accessToken, tokens.refreshToken);
       }
       return res;
     },

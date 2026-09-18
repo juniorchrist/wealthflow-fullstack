@@ -110,10 +110,11 @@ export const SavingsView: React.FC = () => {
       maxHeight="max-h-[90vh]"
     >
       {detailGoal && (() => {
-        const progress = Math.min(100, Math.round((detailGoal.currentAmount / detailGoal.targetAmount) * 100));
-        const remaining = Math.max(0, detailGoal.targetAmount - detailGoal.currentAmount);
-        const boxesCount = detailGoal.checkboxesCount || 10;
-        const stepValue = Math.round(detailGoal.targetAmount / boxesCount);
+        const currentGoal = savingsGoals.find((g) => g.id === detailGoal.id) || detailGoal;
+        const progress = Math.min(100, Math.round((currentGoal.currentAmount / currentGoal.targetAmount) * 100));
+        const remaining = Math.max(0, currentGoal.targetAmount - currentGoal.currentAmount);
+        const boxesCount = currentGoal.checkboxesCount || 10;
+        const stepValue = Math.round(currentGoal.targetAmount / boxesCount);
 
         // Historique des versements (transactions savings_deposit liées)
         return (
@@ -121,11 +122,11 @@ export const SavingsView: React.FC = () => {
             {/* En-tête détail */}
             <div className="flex items-center gap-3 pt-1">
               <div className="w-12 h-12 rounded-2xl bg-[#F7F7F7] flex items-center justify-center flex-shrink-0">
-                {getGoalIcon(detailGoal.icon, 'w-6 h-6')}
+                {getGoalIcon(currentGoal.icon, 'w-6 h-6')}
               </div>
               <div className="min-w-0">
-                <h2 className="text-lg font-black text-[#18181B] leading-tight">{detailGoal.title}</h2>
-                <p className="text-xs text-[#A1A1AA]">Échéance : {detailGoal.deadline}</p>
+                <h2 className="text-lg font-black text-[#18181B] leading-tight">{currentGoal.title}</h2>
+                <p className="text-xs text-[#A1A1AA]">Échéance : {currentGoal.deadline}</p>
               </div>
             </div>
 
@@ -142,8 +143,8 @@ export const SavingsView: React.FC = () => {
                 />
               </div>
               <div className="flex justify-between">
-                <span className="text-sm font-black text-[#18181B] num-tabular">{formatCurrency(detailGoal.currentAmount)}</span>
-                <span className="text-sm text-[#A1A1AA] num-tabular">/ {formatCurrency(detailGoal.targetAmount)}</span>
+                <span className="text-sm font-black text-[#18181B] num-tabular">{formatCurrency(currentGoal.currentAmount)}</span>
+                <span className="text-sm text-[#A1A1AA] num-tabular">/ {formatCurrency(currentGoal.targetAmount)}</span>
               </div>
             </div>
 
@@ -154,7 +155,7 @@ export const SavingsView: React.FC = () => {
                 <p className="text-[10px] text-[#A1A1AA] mt-0.5">Reste à épargner</p>
               </div>
               <div className="p-3 rounded-xl bg-[#F7F7F7] text-center">
-                <p className="text-base font-black text-[#18181B]">{detailGoal.deadline}</p>
+                <p className="text-base font-black text-[#18181B]">{currentGoal.deadline}</p>
                 <p className="text-[10px] text-[#A1A1AA] mt-0.5">Échéance</p>
               </div>
             </div>
@@ -166,15 +167,13 @@ export const SavingsView: React.FC = () => {
               </p>
               <div className="grid grid-cols-5 gap-1.5">
                 {Array.from({ length: boxesCount }).map((_, idx) => {
-                  const isChecked =
-                    detailGoal.checkedBoxes?.includes(idx) ||
-                    idx < Math.floor((detailGoal.currentAmount / detailGoal.targetAmount) * boxesCount);
+                  const isChecked = Boolean(currentGoal.checkedBoxes?.includes(idx));
                   return (
                     <button
                       key={idx}
-                      onClick={() => toggleGoalCheckbox(detailGoal.id, idx)}
+                      onClick={() => toggleGoalCheckbox(currentGoal.id, idx)}
                       className={`h-8 rounded-lg border flex items-center justify-center transition-all cursor-pointer active:scale-90 ${
-                        isChecked ? 'bg-[#FF5330] border-[#FF5330] text-white' : 'bg-[#F7F7F7] border-[#E8E8E8] text-[#A1A1AA]'
+                        isChecked ? 'bg-[#FF5330] border-[#FF5330] text-white shadow-xs' : 'bg-[#F7F7F7] border-[#E8E8E8] text-[#A1A1AA]'
                       }`}
                     >
                       {isChecked ? <Check className="w-3 h-3 stroke-[3]" /> : <span className="text-[10px] font-black">{idx + 1}</span>}
@@ -431,9 +430,7 @@ export const SavingsView: React.FC = () => {
                   </div>
                   <div className="grid grid-cols-5 gap-1">
                     {Array.from({ length: boxesCount }).map((_, idx) => {
-                      const isChecked =
-                        goal.checkedBoxes?.includes(idx) ||
-                        idx < Math.floor((goal.currentAmount / goal.targetAmount) * boxesCount);
+                      const isChecked = Boolean(goal.checkedBoxes?.includes(idx));
                       return (
                         <button
                           key={idx}

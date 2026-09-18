@@ -183,10 +183,19 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
 
-  // Lock Screen: If authenticated and pin is enabled, start locked on reload
+  // Lock Screen: If authenticated and pin is enabled, start locked on reload/reopen
   const [isLocked, setIsLocked] = useState<boolean>(() => {
     const isAuth = localStorage.getItem(STORAGE_KEYS.SESSION) === 'true';
-    return isAuth && userProfile.isPinEnabled;
+    try {
+      const savedUser = localStorage.getItem(STORAGE_KEYS.USER);
+      if (savedUser) {
+        const u = JSON.parse(savedUser);
+        if (isAuth && Boolean(u.isPinEnabled)) {
+          return true;
+        }
+      }
+    } catch {}
+    return false;
   });
 
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -223,6 +232,10 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const profileRes = await api.auth.me();
       if (profileRes.success && profileRes.data) {
         const u = profileRes.data.user || profileRes.data;
+        const pinEnabled = Boolean(u.isPinEnabled);
+        if (pinEnabled && sessionStorage.getItem('wf_session_unlocked') !== 'true') {
+          setIsLocked(true);
+        }
         setUserProfile((prev) => ({
           ...prev,
           name: `${u.prenom || ''} ${u.nom || ''}`.trim() || prev.name,
@@ -234,7 +247,7 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           dateFormat: u.dateFormat || prev.dateFormat,
           plan: u.plan || prev.plan,
           role: u.role || prev.role || 'user',
-          isPinEnabled: u.isPinEnabled ?? prev.isPinEnabled,
+          isPinEnabled: pinEnabled,
         }));
       } else if (
         profileRes.message?.includes('introuvable') ||
@@ -382,6 +395,7 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
 
     setIsLocked(false);
+    sessionStorage.setItem('wf_session_unlocked', 'true');
     refreshRemoteData();
   };
 
@@ -404,6 +418,7 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(newProfile));
     setCurrentRoute('app');
     setIsLocked(false);
+    sessionStorage.setItem('wf_session_unlocked', 'true');
 
     // Enregistrer immédiatement dans la liste des utilisateurs réels
     const newUserEntry: AdminUser = {
@@ -445,6 +460,7 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setSavingsGoals([]);
     setNotifications([]);
     setCurrentRoute('landing');
+    sessionStorage.removeItem('wf_session_unlocked');
     setIsLocked(false);
   };
 
@@ -461,26 +477,26 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
 
 
-  // Calculations réelles basées uniquement sur les opérations effectives
-  const totalIncome = transactions
-    .filter((t) => t.type === 'income')
-    .reduce((acc, curr) => acc + curr.amount, 0);
+  // Calculs réels basés sur les transactions
+  const totalIncome = useMemo(() => {
+    return transactions.filter((t) => t.type === 'income').reduce((acc, curr) => acc + curr.amount, 0);
+  }, [transactions]);
 
-  const totalExpenses = transactions
-    .filter((t) => t.type === 'expense')
-    .reduce((acc, curr) => acc + curr.amount, 0);
+  const totalExpenses = useMemo(() => {
+    return transactions.filter((t) => t.type === 'expense').reduce((acc, curr) => acc + curr.amount, 0);
+  }, [transactions]);
 
-  // Calculer le total des dépôts d'épargne depuis les transactions
-  const totalSavingsDeposits = transactions
-    .filter((t) => t.type === 'savings_deposit')
-    .reduce((acc, curr) => acc + curr.amount, 0);
+  const totalSavingsDeposits = useMemo(() => {
+    return transactions.filter((t) => t.type === 'savings_deposit').reduce((acc, curr) => acc + curr.amount, 0);
+  }, [transactions]);
 
-  const totalSavedFromGoals = savingsGoals.reduce((acc, curr) => acc + curr.currentAmount, 0);
-  const totalSaved = Math.max(totalSavedFromGoals, totalSavingsDeposits);
+  // Source de vérité unique pour le total des épargnes : somme réactive de tous les objectifs d'épargne
+  const totalSaved = useMemo(() => {
+    return savingsGoals.reduce((acc, curr) => acc + (Number(curr.currentAmount) || 0), 0);
+  }, [savingsGoals]);
 
   // Solde disponible réel : Revenus totaux - Dépenses totales - Épargnes placées
-  // Les épargnes sont de l'argent mis de côté, donc non disponible pour les dépenses courantes
-  const totalBalance = totalIncome - totalExpenses - totalSavingsDeposits;
+  const totalBalance = totalIncome - totalExpenses - totalSaved;
 
   const monthlyBudgetTotal = categories
     .filter((c) => c.type === 'expense')
@@ -699,6 +715,19 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // Savings Goal CRUD connecté à l'API Backend
   const addSavingsGoal = async (goal: Omit<SavingsGoal, 'id' | 'currentAmount'>, initialDeposit?: number) => {
+    const tempId = `goal-${Date.now()}`;
+    const initialAmount = initialDeposit && initialDeposit > 0 ? initialDeposit : 0;
+    const newGoal: SavingsGoal = {
+      ...goal,
+      id: tempId,
+      currentAmount: initialAmount,
+      checkboxesCount: goal.checkboxesCount || 10,
+      checkedBoxes: [],
+      isAutoSaveActive: goal.isAutoSaveActive || false,
+    };
+
+    setSavingsGoals((prev) => [newGoal, ...prev]);
+
     try {
       const res = await api.savings.create({
         title: goal.title,
@@ -709,14 +738,13 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         description: goal.description,
       });
 
-      const createdGoalId = res.data?.goal?.id || res.data?.id;
-      if (res.success) {
-        // Rafraîchir les données pour obtenir le nouvel objectif
-        await refreshRemoteData();
-
-        // Si un dépôt initial est spécifié, le faire automatiquement
-        if (initialDeposit && initialDeposit > 0 && createdGoalId) {
-          await contributeToGoal(createdGoalId, initialDeposit);
+      const realGoalId = res.data?.goal?.id || res.data?.id;
+      if (res.success && realGoalId) {
+        setSavingsGoals((prev) =>
+          prev.map((g) => (g.id === tempId ? { ...g, id: realGoalId } : g))
+        );
+        if (initialDeposit && initialDeposit > 0) {
+          await contributeToGoal(realGoalId, initialDeposit);
         }
       }
     } catch (err) {
@@ -743,15 +771,37 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const contributeToGoal = async (id: string, amount: number) => {
+    const numericAmount = Number(amount);
+    if (!numericAmount || numericAmount <= 0) return;
+
+    // 1. Mettre à jour immédiatement le montant de l'objectif ciblé
+    setSavingsGoals((prev) =>
+      prev.map((g) => (g.id === id ? { ...g, currentAmount: g.currentAmount + numericAmount } : g))
+    );
+
+    // 2. Ajouter immédiatement la transaction de versement d'épargne
+    const goalTitle = savingsGoals.find((g) => g.id === id)?.title || 'Objectif';
+    const tempTxId = `tx-dep-${Date.now()}`;
+    const newTx: Transaction = {
+      id: tempTxId,
+      title: `Dépôt - ${goalTitle}`,
+      amount: numericAmount,
+      type: 'savings_deposit',
+      category: 'Épargne & Investissement',
+      account: 'Compte principal',
+      date: new Date().toISOString().split('T')[0],
+      time: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+      notes: `Versement sur ${goalTitle}`,
+    };
+    setTransactions((prev) => [newTx, ...prev]);
+
     try {
       const res = await api.savings.deposit(id, {
-        amount,
+        amount: numericAmount,
         date: new Date().toISOString(),
       });
-
       if (res.success) {
-        // Le backend crée déjà la transaction et le dépôt, on rafraîchit les données
-        await refreshRemoteData();
+        refreshRemoteData();
       }
     } catch (err) {
       console.warn('[WealthFlow API] Erreur lors du dépôt d\'épargne:', err);
@@ -760,26 +810,33 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const toggleGoalCheckbox = async (goalId: string, boxIndex: number) => {
     let updatedCheckedBoxes: number[] = [];
+
     setSavingsGoals((prev) =>
       prev.map((goal) => {
         if (goal.id !== goalId) return goal;
-        const checked = new Set(goal.checkedBoxes || []);
+        const checkedSet = new Set(goal.checkedBoxes || []);
         const totalBoxes = goal.checkboxesCount || 10;
         const unitValue = goal.targetAmount / totalBoxes;
 
-        if (checked.has(boxIndex)) {
-          checked.delete(boxIndex);
+        const wasChecked = checkedSet.has(boxIndex);
+        if (wasChecked) {
+          checkedSet.delete(boxIndex);
         } else {
-          checked.add(boxIndex);
+          checkedSet.add(boxIndex);
         }
 
-        updatedCheckedBoxes = Array.from(checked);
-        const calculatedAmount = Math.min(goal.targetAmount, Math.round(updatedCheckedBoxes.length * unitValue));
+        updatedCheckedBoxes = Array.from(checkedSet);
+        const diffCount = wasChecked ? -1 : 1;
+        const deltaAmount = Math.round(unitValue * diffCount);
+        const newCurrentAmount = Math.min(
+          goal.targetAmount,
+          Math.max(0, goal.currentAmount + deltaAmount)
+        );
 
         return {
           ...goal,
           checkedBoxes: updatedCheckedBoxes,
-          currentAmount: calculatedAmount,
+          currentAmount: newCurrentAmount,
         };
       })
     );
@@ -930,6 +987,7 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     // Si la protection par PIN/code n'est pas activée, déverrouiller
     if (!userProfile.isPinEnabled) {
       setIsLocked(false);
+      sessionStorage.setItem('wf_session_unlocked', 'true');
       if (previousTab) setActiveTab(previousTab);
       return true;
     }
@@ -938,6 +996,7 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const valid = Boolean(userProfile.pinCode && pin === userProfile.pinCode);
     if (valid) {
       setIsLocked(false);
+      sessionStorage.setItem('wf_session_unlocked', 'true');
       if (previousTab) {
         setActiveTab(previousTab);
       }
@@ -948,6 +1007,7 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const lockApp = () => {
     setPreviousTab(activeTab);
+    sessionStorage.removeItem('wf_session_unlocked');
     setIsLocked(true);
   };
 

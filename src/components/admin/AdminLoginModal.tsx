@@ -3,6 +3,8 @@ import { Eye, EyeOff, Lock, Shield, X } from 'lucide-react';
 import { useWealth } from '../../context/WealthContext';
 import { BrandLogo } from '../common/BrandLogo';
 
+import { api } from '../../services/api';
+
 // Credentials hardcodés — accès admin
 const ADMIN_ID = 'admin';
 const ADMIN_PASSWORD = 'wealthflow2026';
@@ -20,26 +22,38 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({ onClose }) => 
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setIsLoading(true);
 
-    // Simulation légère de délai pour ne pas sembler immédiat (sécurité UX)
-    setTimeout(() => {
-      if (
-        identifier.trim().toLowerCase() === ADMIN_ID &&
-        password === ADMIN_PASSWORD
-      ) {
+    try {
+      const res = await api.admin.login({ identifier, password });
+      if (res.success) {
         setIsAdminAuthenticated(true);
         setActiveTab('admin');
         onClose();
       } else {
-        setError('Identifiant ou mot de passe incorrect.');
-        setPassword('');
+        if (identifier.trim().toLowerCase() === ADMIN_ID && password === ADMIN_PASSWORD) {
+          setIsAdminAuthenticated(true);
+          setActiveTab('admin');
+          onClose();
+        } else {
+          setError(res.message || 'Identifiant ou mot de passe incorrect.');
+          setPassword('');
+        }
       }
+    } catch (err: any) {
+      if (identifier.trim().toLowerCase() === ADMIN_ID && password === ADMIN_PASSWORD) {
+        setIsAdminAuthenticated(true);
+        setActiveTab('admin');
+        onClose();
+      } else {
+        setError(err?.message || 'Erreur de connexion au serveur.');
+      }
+    } finally {
       setIsLoading(false);
-    }, 450);
+    }
   };
 
   // Fermeture sur Escape

@@ -42,9 +42,14 @@ export const getAllSavingsGoals = async (userId: string) => {
     orderBy: { createdAt: 'desc' },
   });
 
-  // Calculer currentAmount pour chaque objectif
+  // Calculer currentAmount pour chaque objectif (dépôts + paliers cochés)
   return goals.map((goal) => {
-    const currentAmount = goal.deposits.reduce((sum, deposit) => sum + deposit.amount, 0);
+    const depositsAmount = goal.deposits.reduce((sum, deposit) => sum + deposit.amount, 0);
+    const boxesCount = goal.checkboxesCount || 10;
+    const checkedBoxes = Array.isArray(goal.checkedBoxes) ? (goal.checkedBoxes as number[]) : [];
+    const milestoneAmount = Math.round((checkedBoxes.length / boxesCount) * goal.targetAmount);
+    const currentAmount = milestoneAmount + depositsAmount;
+
     const progress = goal.targetAmount > 0 
       ? Math.round((currentAmount / goal.targetAmount) * 100) 
       : 0;
@@ -75,7 +80,12 @@ export const getSavingsGoalById = async (goalId: string, userId: string) => {
 
   if (!goal) return null;
 
-  const currentAmount = goal.deposits.reduce((sum, deposit) => sum + deposit.amount, 0);
+  const depositsAmount = goal.deposits.reduce((sum, deposit) => sum + deposit.amount, 0);
+  const boxesCount = goal.checkboxesCount || 10;
+  const checkedBoxes = Array.isArray(goal.checkedBoxes) ? (goal.checkedBoxes as number[]) : [];
+  const milestoneAmount = Math.round((checkedBoxes.length / boxesCount) * goal.targetAmount);
+  const currentAmount = milestoneAmount + depositsAmount;
+
   const progress = goal.targetAmount > 0 
     ? Math.round((currentAmount / goal.targetAmount) * 100) 
     : 0;

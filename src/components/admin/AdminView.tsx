@@ -269,6 +269,23 @@ export const AdminView: React.FC = () => {
     });
   }, [ALL_USERS, userSearch, userFilter]);
 
+  // Bascule instantanée du mode maintenance avec synchronisation BDD
+  const toggleMaintenanceMode = async () => {
+    const nextVal = !siteSettingsDraft.maintenanceMode;
+    setSiteSettingsDraft((p) => ({ ...p, maintenanceMode: nextVal }));
+    setSiteSettings((p) => ({ ...p, maintenanceMode: nextVal }));
+    try {
+      await api.admin.updateSettings({
+        maintenanceMode: nextVal,
+        maintenanceMessage: siteSettingsDraft.announcement || 'WealthFlow est temporairement en maintenance. Nous revenons très vite !',
+      });
+      setActionFeedback(nextVal ? '🔧 Mode maintenance ACTIF (bloque l’accès utilisateur)' : '✅ Mode maintenance DÉSACTIVÉ (accès restauré)');
+      setTimeout(() => setActionFeedback(null), 3000);
+    } catch (e) {
+      console.warn('[AdminView] Erreur bascule maintenance:', e);
+    }
+  };
+
   // Gestion des paramètres du site & mode maintenance avec synchronisation backend
   const handleSaveSettings = async () => {
     setSiteSettings(siteSettingsDraft);
@@ -288,6 +305,44 @@ export const AdminView: React.FC = () => {
       setSettingsSaved(false);
       setActionFeedback(null);
     }, 2500);
+  };
+
+  // Diffuser une notification globale à tous les utilisateurs (ou ciblée)
+  const handleBroadcastNotification = async () => {
+    const titleEl = document.getElementById('notif-title') as HTMLInputElement | null;
+    const msgEl = document.getElementById('notif-message') as HTMLTextAreaElement | null;
+    const typeEl = document.getElementById('notif-type') as HTMLSelectElement | null;
+
+    const title = titleEl?.value?.trim() || '';
+    const message = msgEl?.value?.trim() || '';
+    const type = typeEl?.value || 'info';
+
+    if (!title || !message) {
+      setActionFeedback('Veuillez saisir le titre et le message de la notification');
+      setTimeout(() => setActionFeedback(null), 3000);
+      return;
+    }
+
+    try {
+      const res = await api.admin.broadcastNotification({
+        title,
+        message,
+        type,
+        targetUserId: 'all',
+      });
+
+      if (res.success) {
+        setActionFeedback(res.message || 'Notification diffusée à tous les utilisateurs avec succès');
+        if (titleEl) titleEl.value = '';
+        if (msgEl) msgEl.value = '';
+      } else {
+        setActionFeedback(res.message || 'Erreur lors de l’envoi de la notification');
+      }
+    } catch (e: any) {
+      console.error('[AdminView] Erreur diffusion notification:', e);
+      setActionFeedback(e?.message || 'Erreur lors de l’envoi de la notification');
+    }
+    setTimeout(() => setActionFeedback(null), 3500);
   };
 
   // Sauvegarde des documents légaux (CGU et Politique de confidentialité)
@@ -332,13 +387,13 @@ export const AdminView: React.FC = () => {
     }
   };
 
-  // Mettre à jour le statut d'un ticket
-  const handleUpdateTicketStatus = async (ticketId: string, newStatus: string) => {
+  // Mettre à jour le statut d'un ticket avec réponse optionnelle
+  const handleUpdateTicketStatus = async (ticketId: string, newStatus: string, reply?: string) => {
     try {
-      const res = await api.admin.updateTicket(ticketId, newStatus);
+      const res = await api.admin.updateTicket(ticketId, newStatus, reply);
       if (res.success) {
         setTicketsList((prev) =>
-          prev.map((t) => (t.id === ticketId ? { ...t, status: newStatus } : t))
+          prev.map((t) => (t.id === ticketId ? { ...t, status: newStatus, ...(reply ? { reply } : {}) } : t))
         );
         setActionFeedback(`Statut du ticket mis à jour : ${newStatus}`);
         setTimeout(() => setActionFeedback(null), 2000);
@@ -1221,9 +1276,19 @@ export const AdminView: React.FC = () => {
                   Demandes d'aide, signalements et recours envoyés depuis le Centre d'aide
                 </p>
               </div>
-              <span className="px-2.5 py-1 rounded-lg bg-[#3B82F6]/10 text-[#3B82F6] text-xs font-bold">
-                {ticketsList.length} ticket{ticketsList.length > 1 ? 's' : ''}
-              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={fetchTickets}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-[#E8E8E8] text-xs font-bold text-[#18181B] hover:bg-[#F7F7F7] active:scale-95 transition-all cursor-pointer"
+                  title="Rafraîchir les tickets"
+                >
+                  <RotateCw className="w-3.5 h-3.5 text-[#FF5330]" />
+                  <span>Actualiser</span>
+                </button>
+                <span className="px-2.5 py-1 rounded-lg bg-[#3B82F6]/10 text-[#3B82F6] text-xs font-bold">
+                  {ticketsList.length} ticket{ticketsList.length > 1 ? 's' : ''}
+                </span>
+              </div>
             </div>
 
             {ticketsList.length === 0 ? (
@@ -1262,6 +1327,13 @@ export const AdminView: React.FC = () => {
                       {ticket.message}
                     </div>
 
+                    {ticket.reply && (
+                      <div className="text-xs text-[#065F46] bg-[#ECFDF5] border border-[#A7F3D0] p-2.5 rounded-xl">
+                        <span className="font-bold">Réponse transmise à l'utilisateur : </span>
+                        {ticket.reply}
+                      </div>
+                    )}
+
                     <div className="flex items-center justify-between flex-wrap gap-2 pt-1 border-t border-[#F0F0F0]">
                       <div className="text-[11px] text-[#6F6F73]">
                         De : <strong className="text-[#18181B]">{ticket.name}</strong> ({ticket.email})
@@ -1275,10 +1347,13 @@ export const AdminView: React.FC = () => {
                       <div className="flex items-center gap-2">
                         {ticket.status !== 'resolved' && (
                           <button
-                            onClick={() => handleUpdateTicketStatus(ticket.id, 'resolved')}
+                            onClick={() => {
+                              const replyText = window.prompt("Rédigez un message de réponse pour l'utilisateur (optionnel) :", "Votre demande a été traitée par l'équipe d'assistance.");
+                              handleUpdateTicketStatus(ticket.id, 'resolved', replyText || undefined);
+                            }}
                             className="px-2.5 py-1 rounded-lg bg-[#10B981]/10 hover:bg-[#10B981]/20 text-[#10B981] font-bold text-xs transition-colors cursor-pointer"
                           >
-                            Marquer résolu
+                            Traiter & Répondre
                           </button>
                         )}
                         {ticket.status === 'open' && (
@@ -1286,7 +1361,7 @@ export const AdminView: React.FC = () => {
                             onClick={() => handleUpdateTicketStatus(ticket.id, 'in_progress')}
                             className="px-2.5 py-1 rounded-lg bg-[#3B82F6]/10 hover:bg-[#3B82F6]/20 text-[#3B82F6] font-bold text-xs transition-colors cursor-pointer"
                           >
-                            En cours
+                            Passer en cours
                           </button>
                         )}
                       </div>

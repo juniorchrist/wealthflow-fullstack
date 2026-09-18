@@ -16,7 +16,7 @@ import { NewGoalModal } from '../modals/NewGoalModal';
 import { NewTransactionModal } from '../modals/NewTransactionModal';
 import { NotificationsView } from '../notifications/NotificationsView';
 import { SavingsView } from '../savings/SavingsView';
-import { LockScreen } from '../security/LockScreen';
+import { SecurityLockView } from '../security/SecurityLockView';
 import { SettingsView } from '../settings/SettingsView';
 import { StrategyView } from '../strategy/StrategyView';
 import { TransactionsView } from '../transactions/TransactionsView';
@@ -28,44 +28,50 @@ import { api } from '../../services/api';
 export const AppShell: React.FC = () => {
   const { activeTab, isLocked, isLoading, finishLoading, loadingMessage, currentRoute, isAuthenticated, isAdminAuthenticated, setActiveTab, addNotification } = useWealth();
 
-  // Maintenance Mode — récupéré depuis l'API backend au chargement
+  // Maintenance Mode — récupéré et synchronisé depuis l'API backend DB
   const [isMaintenanceMode, setIsMaintenanceMode] = useState(false);
   const [maintenanceMessage, setMaintenanceMessage] = useState('');
   const [maintenanceChecked, setMaintenanceChecked] = useState(false);
 
-  useEffect(() => {
-    api.system.getSettings().then((res) => {
-      if (res.success && res.data) {
-        const maintenance = Boolean(res.data.maintenanceMode);
-        const msg = res.data.maintenanceMessage || '';
-        setIsMaintenanceMode(maintenance);
-        setMaintenanceMessage(msg);
+  const checkMaintenanceStatus = React.useCallback(() => {
+    api.system
+      .getSettings()
+      .then((res) => {
+        if (res.success && res.data) {
+          const maintenance = Boolean(res.data.maintenanceMode);
+          const msg = res.data.maintenanceMessage || '';
+          setIsMaintenanceMode(maintenance);
+          setMaintenanceMessage(msg);
 
-        // Pousser une notification dans le centre si la maintenance est active
-        if (maintenance) {
-          const flagKey = 'wf_maintenance_notif_sent';
-          const alreadySent = localStorage.getItem(flagKey);
-          if (!alreadySent) {
-            addNotification({
-              title: '🔧 Maintenance en cours',
-              message: msg || "WealthFlow est en cours de maintenance. Nous revenons très prochainement !",
-              date: new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' }),
-              read: false,
-              type: 'warning',
-            });
-            localStorage.setItem(flagKey, '1');
+          if (maintenance) {
+            const flagKey = 'wf_maintenance_notif_sent';
+            const alreadySent = localStorage.getItem(flagKey);
+            if (!alreadySent) {
+              addNotification({
+                title: '🔧 Maintenance en cours',
+                message: msg || 'WealthFlow est en cours de maintenance. Nous revenons très prochainement !',
+                date: new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' }),
+                read: false,
+                type: 'warning',
+              });
+              localStorage.setItem(flagKey, '1');
+            }
+          } else {
+            localStorage.removeItem('wf_maintenance_notif_sent');
           }
-        } else {
-          // Réinitialiser le flag quand la maintenance est levée
-          localStorage.removeItem('wf_maintenance_notif_sent');
         }
-      }
-    }).catch(() => {
-      // En cas d'erreur réseau, ne pas bloquer le site
-    }).finally(() => {
-      setMaintenanceChecked(true);
-    });
-  }, []);
+      })
+      .catch(() => {})
+      .finally(() => {
+        setMaintenanceChecked(true);
+      });
+  }, [addNotification]);
+
+  useEffect(() => {
+    checkMaintenanceStatus();
+    const interval = setInterval(checkMaintenanceStatus, 15000);
+    return () => clearInterval(interval);
+  }, [checkMaintenanceStatus, activeTab]);
 
   const renderActiveView = () => {
     switch (activeTab) {
@@ -133,7 +139,7 @@ export const AppShell: React.FC = () => {
   if (isLocked) {
     return (
       <>
-        <LockScreen />
+        <SecurityLockView />
         <AuthModal />
       </>
     );
