@@ -187,7 +187,7 @@ export const listAdminUsersHandler = async (
 /**
  * Supprimer et bannir un utilisateur par son ID en enregistrant le motif réel
  * DELETE /api/admin/users/:id
- */
+  */
 export const deleteAdminUserHandler = async (
   req: Request,
   res: Response,
@@ -195,15 +195,13 @@ export const deleteAdminUserHandler = async (
 ) => {
   try {
     const { id } = req.params;
-    const { reason, bannedBy } = req.body || {};
+    const { reason, bannedBy, email } = req.body || {};
 
-    const user = await findUserById(id);
-    if (!user) {
-      res.status(404).json({
-        success: false,
-        message: 'Utilisateur non trouvé en base de données',
-      });
-      return;
+    // 1. Chercher l'utilisateur par ID, par email, ou si l'identifiant lui-même est un email
+    let user = await findUserById(id);
+    if (!user && (email || id.includes('@'))) {
+      const searchEmail = email || id;
+      user = await findUserByEmail(String(searchEmail).toLowerCase().trim());
     }
 
     const banReason =
@@ -211,32 +209,108 @@ export const deleteAdminUserHandler = async (
         ? String(reason).trim()
         : 'Suppression administrative pour non-respect des conditions d’utilisation';
 
-    // Enregistrer ou mettre à jour le motif de bannissement dans BanRecord
-    await prisma.banRecord.upsert({
-      where: { email: user.email.toLowerCase().trim() },
+    const targetEmail = (user?.email || email || (id.includes('@') ? id : '')).toLowerCase().trim();
+
+    if (!targetEmail && !user) {
+      res.status(404).json({
+        success: false,
+        message: 'Utilisateur non trouvé en base de données',
+      });
+      return;
+    }
+
+    // 2. Toujours enregistrer ou mettre à jour le motif de bannissement dans BanRecord
+    if (targetEmail) {
+      await prisma.banRecord.upsert({
+        where: { email: targetEmail },
+        update: {
+          reason: banReason,
+          nom: user?.nom || null,
+          prenom: user?.prenom || null,
+          bannedAt: new Date(),
+          bannedBy: bannedBy || 'Administrateur',
+        },
+        create: {
+          email: targetEmail,
+          nom: user?.nom || null,
+          prenom: user?.prenom || null,
+          reason: banReason,
+          bannedAt: new Date(),
+          bannedBy: bannedBy || 'Administrateur',
+        },
+      });
+    }
+
+    // 3. Supprimer le compte et toutes ses relations en cascade transactionnelle s'il existe
+    if (user) {
+      await deleteUser(user.id);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Le compte ${targetEmail} a été supprimé et banni avec succès pour le motif : "${banReason}"`,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Bannir un utilisateur directement (avec ou sans suppression préalable)
+ * POST /api/admin/bans
+ */
+export const createBanHandler = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { email, nom, prenom, reason, bannedBy, deleteAccount } = req.body || {};
+
+    if (!email || !String(email).includes('@')) {
+      res.status(400).json({
+        success: false,
+        message: 'Adresse email valide requise pour le bannissement',
+      });
+      return;
+    }
+
+    const cleanEmail = String(email).toLowerCase().trim();
+    const banReason =
+      reason && String(reason).trim().length > 0
+        ? String(reason).trim()
+        : 'Bannissement administratif pour non-respect des conditions d’utilisation';
+
+    // Trouver l'utilisateur s'il existe
+    const user = await findUserByEmail(cleanEmail);
+
+    const banRecord = await prisma.banRecord.upsert({
+      where: { email: cleanEmail },
       update: {
         reason: banReason,
-        nom: user.nom,
-        prenom: user.prenom,
+        nom: nom || user?.nom || null,
+        prenom: prenom || user?.prenom || null,
         bannedAt: new Date(),
         bannedBy: bannedBy || 'Administrateur',
       },
       create: {
-        email: user.email.toLowerCase().trim(),
-        nom: user.nom,
-        prenom: user.prenom,
+        email: cleanEmail,
+        nom: nom || user?.nom || null,
+        prenom: prenom || user?.prenom || null,
         reason: banReason,
         bannedAt: new Date(),
         bannedBy: bannedBy || 'Administrateur',
       },
     });
 
-    // Supprimer le compte et toutes ses relations en cascade transactionnelle
-    await deleteUser(id);
+    if (deleteAccount && user) {
+      await deleteUser(user.id);
+    }
 
-    res.status(200).json({
+    res.status(201).json({
       success: true,
-      message: `Le compte de ${user.email} a été supprimé et banni avec succès pour le motif : "${banReason}"`,
+      message: `Le compte ${cleanEmail} a été banni avec succès`,
+      data: banRecord,
     });
   } catch (error) {
     next(error);

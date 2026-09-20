@@ -9,6 +9,7 @@ interface MonthlyCalendarModalProps {
   initialYear: number;
   initialMonth: number;
   formatCurrency: (amount: number) => string;
+  onMonthChange?: (year: number, month: number) => void;
 }
 
 const DAYS_OF_WEEK = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
@@ -35,31 +36,47 @@ export const MonthlyCalendarModal: React.FC<MonthlyCalendarModalProps> = ({
   initialYear,
   initialMonth,
   formatCurrency,
+  onMonthChange,
 }) => {
   const [year, setYear] = useState(initialYear);
   const [month, setMonth] = useState(initialMonth);
   const [selectedDayDate, setSelectedDayDate] = useState<string | null>(null);
 
+  React.useEffect(() => {
+    setYear(initialYear);
+    setMonth(initialMonth);
+  }, [initialYear, initialMonth]);
+
   if (!isOpen) return null;
 
   const handlePrevMonth = () => {
+    let newYear = year;
+    let newMonth = month;
     if (month === 0) {
-      setYear(year - 1);
-      setMonth(11);
+      newYear = year - 1;
+      newMonth = 11;
     } else {
-      setMonth(month - 1);
+      newMonth = month - 1;
     }
+    setYear(newYear);
+    setMonth(newMonth);
     setSelectedDayDate(null);
+    onMonthChange?.(newYear, newMonth);
   };
 
   const handleNextMonth = () => {
+    let newYear = year;
+    let newMonth = month;
     if (month === 11) {
-      setYear(year + 1);
-      setMonth(0);
+      newYear = year + 1;
+      newMonth = 0;
     } else {
-      setMonth(month + 1);
+      newMonth = month + 1;
     }
+    setYear(newYear);
+    setMonth(newMonth);
     setSelectedDayDate(null);
+    onMonthChange?.(newYear, newMonth);
   };
 
   // Calcul du premier jour du mois et du nombre total de jours

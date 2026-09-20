@@ -97,8 +97,8 @@ export const getSavingsGoalById = async (goalId: string, userId: string) => {
   };
 };
 
-export const createSavingsGoal = async (data: CreateSavingsGoalData): Promise<SavingsGoal> => {
-  return prisma.savingsGoal.create({
+export const createSavingsGoal = async (data: CreateSavingsGoalData): Promise<any> => {
+  const created = await prisma.savingsGoal.create({
     data: {
       userId: data.userId,
       title: data.title,
@@ -113,6 +113,12 @@ export const createSavingsGoal = async (data: CreateSavingsGoalData): Promise<Sa
       autoSaveAmount: data.autoSaveAmount || null,
     },
   });
+
+  return {
+    ...created,
+    currentAmount: 0,
+    progress: 0,
+  };
 };
 
 /**
@@ -122,7 +128,7 @@ export const updateSavingsGoal = async (
   goalId: string,
   userId: string,
   data: UpdateSavingsGoalData
-): Promise<SavingsGoal> => {
+): Promise<any> => {
   // Vérifier que l'objectif appartient à l'utilisateur
   const goal = await prisma.savingsGoal.findFirst({
     where: {
@@ -135,10 +141,31 @@ export const updateSavingsGoal = async (
     throw new Error('Objectif d\'épargne non trouvé');
   }
 
-  return prisma.savingsGoal.update({
+  const updated = await prisma.savingsGoal.update({
     where: { id: goalId },
     data,
+    include: {
+      deposits: {
+        orderBy: { date: 'desc' },
+      },
+    },
   });
+
+  const depositsAmount = updated.deposits.reduce((sum, deposit) => sum + deposit.amount, 0);
+  const boxesCount = updated.checkboxesCount || 10;
+  const checkedBoxes = Array.isArray(updated.checkedBoxes) ? (updated.checkedBoxes as number[]) : [];
+  const milestoneAmount = Math.round((checkedBoxes.length / boxesCount) * updated.targetAmount);
+  const currentAmount = milestoneAmount + depositsAmount;
+
+  const progress = updated.targetAmount > 0 
+    ? Math.round((currentAmount / updated.targetAmount) * 100) 
+    : 0;
+
+  return {
+    ...updated,
+    currentAmount,
+    progress,
+  };
 };
 
 /**

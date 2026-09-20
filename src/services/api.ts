@@ -17,6 +17,8 @@ export const API_BASE_URL = getApiBaseUrl();
 // Gestion des tokens JWT
 const TOKEN_KEY = 'wf_auth_token';
 const REFRESH_TOKEN_KEY = 'wf_refresh_token';
+const ADMIN_TOKEN_KEY = 'wf_admin_auth_token';
+const ADMIN_REFRESH_TOKEN_KEY = 'wf_admin_refresh_token';
 
 export const getAuthToken = (): string | null => {
   return localStorage.getItem(TOKEN_KEY);
@@ -34,6 +36,22 @@ export const clearAuthTokens = (): void => {
   localStorage.removeItem(REFRESH_TOKEN_KEY);
 };
 
+export const getAdminAuthToken = (): string | null => {
+  return localStorage.getItem(ADMIN_TOKEN_KEY);
+};
+
+export const setAdminAuthToken = (token: string, refreshToken?: string): void => {
+  localStorage.setItem(ADMIN_TOKEN_KEY, token);
+  if (refreshToken) {
+    localStorage.setItem(ADMIN_REFRESH_TOKEN_KEY, refreshToken);
+  }
+};
+
+export const clearAdminAuthToken = (): void => {
+  localStorage.removeItem(ADMIN_TOKEN_KEY);
+  localStorage.removeItem(ADMIN_REFRESH_TOKEN_KEY);
+};
+
 // Fonction générique pour effectuer des requêtes API
 async function apiRequest<T>(
   endpoint: string,
@@ -42,7 +60,8 @@ async function apiRequest<T>(
 ): Promise<{ success: boolean; data?: T; message?: string; error?: any }> {
   const url = `${API_BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
   
-  const token = getAuthToken();
+  const isAdminRoute = endpoint.startsWith('/admin') && !endpoint.startsWith('/admin/login');
+  const token = isAdminRoute ? (getAdminAuthToken() || getAuthToken()) : getAuthToken();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(options.headers as Record<string, string>),
@@ -436,19 +455,30 @@ export const api = {
       });
       const tokens = res.data?.tokens || res.data?.data?.tokens || (res as any)?.tokens;
       if (res.success && tokens?.accessToken) {
-        setAuthToken(tokens.accessToken, tokens.refreshToken);
+        setAdminAuthToken(tokens.accessToken, tokens.refreshToken);
       }
       return res;
     },
+
+    getAdminToken: getAdminAuthToken,
+    setAdminToken: setAdminAuthToken,
+    clearAdminToken: clearAdminAuthToken,
 
     getUsers: async () => {
       return apiRequest<any[]>('/admin/users');
     },
 
-    deleteUser: async (id: string, reason?: string) => {
+    deleteUser: async (id: string, reason?: string, email?: string) => {
       return apiRequest<any>(`/admin/users/${id}`, {
         method: 'DELETE',
-        body: JSON.stringify({ reason }),
+        body: JSON.stringify({ reason, email }),
+      });
+    },
+
+    banUser: async (payload: { email: string; reason?: string; nom?: string; prenom?: string; deleteAccount?: boolean }) => {
+      return apiRequest<any>('/admin/bans', {
+        method: 'POST',
+        body: JSON.stringify(payload),
       });
     },
 

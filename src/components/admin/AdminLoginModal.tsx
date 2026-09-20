@@ -30,27 +30,17 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({ onClose }) => 
     try {
       const res = await api.admin.login({ identifier, password });
       if (res.success) {
+        // Token stocké automatiquement par api.admin.login()
         setIsAdminAuthenticated(true);
         setActiveTab('admin');
         onClose();
       } else {
-        if (identifier.trim().toLowerCase() === ADMIN_ID && password === ADMIN_PASSWORD) {
-          setIsAdminAuthenticated(true);
-          setActiveTab('admin');
-          onClose();
-        } else {
-          setError(res.message || 'Identifiant ou mot de passe incorrect.');
-          setPassword('');
-        }
+        setError(res.message || 'Identifiant ou mot de passe incorrect.');
+        setPassword('');
       }
     } catch (err: any) {
-      if (identifier.trim().toLowerCase() === ADMIN_ID && password === ADMIN_PASSWORD) {
-        setIsAdminAuthenticated(true);
-        setActiveTab('admin');
-        onClose();
-      } else {
-        setError(err?.message || 'Erreur de connexion au serveur.');
-      }
+      setError(err?.message || 'Erreur de connexion au serveur.');
+      setPassword('');
     } finally {
       setIsLoading(false);
     }

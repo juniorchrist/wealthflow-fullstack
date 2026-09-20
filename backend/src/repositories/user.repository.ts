@@ -11,6 +11,7 @@ export interface CreateUserData {
   language?: string;
   timezone?: string;
   dateFormat?: string;
+  isPinEnabled?: boolean;
   role?: string;
 }
 
@@ -44,6 +45,7 @@ export const createUser = async (data: CreateUserData): Promise<User> => {
       language: data.language || 'Français',
       timezone: data.timezone || 'GMT +00:00',
       dateFormat: data.dateFormat || 'DD/MM/YYYY',
+      isPinEnabled: data.isPinEnabled ?? true,
       role: data.role || 'user',
     },
   });

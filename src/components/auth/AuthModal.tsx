@@ -66,7 +66,10 @@ export const AuthModal: React.FC = () => {
       if (res.success && res.data?.user) {
         const u = res.data.user;
         const fullName = `${u.prenom || ''} ${u.nom || ''}`.trim() || u.email;
+        
+        // Le mot de passe correspond au code de déverrouillage PIN à 4 chiffres
         login({
+          id: u.id,
           name: fullName,
           email: u.email,
           pinCode: password,

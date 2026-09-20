@@ -16,6 +16,7 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import { useWealth } from '../../context/WealthContext';
+import { initialChartData } from '../../data/initialData';
 import { CategoryIcon } from '../common/CategoryIcon';
 
 export const AnalyticsView: React.FC = () => {
@@ -57,16 +58,17 @@ export const AnalyticsView: React.FC = () => {
     })
     .sort((a, b) => b.spent - a.spent);
 
+  const rawChartData = chartData && chartData.length > 0 ? chartData : initialChartData;
   const displayChartData =
     timeframe === '3'
-      ? chartData.slice(-3)
+      ? rawChartData.slice(-3)
       : timeframe === '6'
-      ? chartData.slice(-6)
-      : chartData;
+      ? rawChartData.slice(-6)
+      : rawChartData;
 
   const maxBarVal = Math.max(
     ...displayChartData.map((d) => Math.max(d.revenus, d.depenses)),
-    2000000
+    100000
   );
 
   return (

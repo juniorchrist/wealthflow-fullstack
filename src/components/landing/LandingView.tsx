@@ -141,7 +141,7 @@ export const LandingView: React.FC = () => {
                 onClick={() => handleOpenAuth('register')}
                 className="px-4 py-2 bg-[#FF5330] text-white text-xs font-bold rounded-lg transition-colors cursor-pointer active:scale-95"
               >
-                Commencer gratuitement
+                S'inscrire
               </button>
             </div>
 
@@ -198,7 +198,7 @@ export const LandingView: React.FC = () => {
                   onClick={() => handleOpenAuth('register')}
                   className="w-full py-2.5 text-sm font-bold text-white bg-[#FF5330] rounded-xl transition-colors cursor-pointer"
                 >
-                  Commencer gratuitement
+                  S'inscrire
                 </button>
               </div>
             </div>
@@ -240,7 +240,7 @@ export const LandingView: React.FC = () => {
                 onClick={() => handleOpenAuth('register')}
                 className="w-full sm:w-auto px-8 py-3.5 bg-[#FF5330] text-white font-bold text-sm rounded-xl transition-all cursor-pointer active:scale-95 shadow-[0_4px_14px_rgba(255,83,48,0.3)]"
               >
-                Commencer gratuitement
+                S'inscrire
               </button>
               <button
                 onClick={() => {
@@ -523,7 +523,7 @@ export const LandingView: React.FC = () => {
                 <li>
                   <button
                     onClick={() => { setLegalTab('terms'); setLegalModalOpen(true); }}
-                    className="text-xs text-[#6F6F73] hover:text-[#FF5330] transition-colors cursor-pointer text-left"
+                    className="text-xs text-[#6F6F73]"
                   >
                     Conditions d'utilisation
                   </button>
@@ -531,7 +531,7 @@ export const LandingView: React.FC = () => {
                 <li>
                   <button
                     onClick={() => { setLegalTab('privacy'); setLegalModalOpen(true); }}
-                    className="text-xs text-[#6F6F73] hover:text-[#FF5330] transition-colors cursor-pointer text-left"
+                    className="text-xs text-[#6F6F73]"
                   >
                     Politique de confidentialité
                   </button>
@@ -539,7 +539,7 @@ export const LandingView: React.FC = () => {
                 <li>
                   <button
                     onClick={() => { setLegalTab('faq'); setLegalModalOpen(true); }}
-                    className="text-xs font-bold text-[#FF5330] hover:underline transition-colors cursor-pointer text-left"
+                    className="text-xs text-[#18181B]"
                   >
                     FAQ
                   </button>
@@ -555,7 +555,7 @@ export const LandingView: React.FC = () => {
                 <li>
                   <button
                     onClick={() => setContactModalOpen(true)}
-                    className="text-xs text-[#6F6F73] hover:text-[#FF5330] transition-colors cursor-pointer"
+                    className="text-xs text-[#6F6F73]"
                   >
                     Contact
                   </button>
@@ -666,7 +666,7 @@ export const LandingView: React.FC = () => {
                 </div>
                 <div>
                   <p className="text-[11px] font-bold text-[#A1A1AA] uppercase tracking-wider">Téléphone 1</p>
-                  <p className="text-sm font-bold text-[#18181B] group-hover:text-[#FF5330] transition-colors">05 66 4 72 84</p>
+                  <p className="text-sm font-bold text-[#18181B] group-hover:text-[#FF5330] transition-colors">05 66 47 22 84</p>
                 </div>
               </a>
 
@@ -680,7 +680,7 @@ export const LandingView: React.FC = () => {
                 </div>
                 <div>
                   <p className="text-[11px] font-bold text-[#A1A1AA] uppercase tracking-wider">Téléphone 2</p>
-                  <p className="text-sm font-bold text-[#18181B] group-hover:text-[#FF5330] transition-colors">0575597126</p>
+                  <p className="text-sm font-bold text-[#18181B] group-hover:text-[#FF5330] transition-colors">05 75 59 71 26</p>
                 </div>
               </a>
             </div>

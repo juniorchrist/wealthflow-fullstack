@@ -549,6 +549,12 @@ export const TransactionsView: React.FC = () => {
         initialYear={selectedYear}
         initialMonth={selectedMonth}
         formatCurrency={formatCurrency}
+        onMonthChange={(y, m) => {
+          setSelectedYear(y);
+          setSelectedMonth(m);
+          setIsMonthFilterActive(true);
+          setCurrentPage(1);
+        }}
       />
     </div>
   );

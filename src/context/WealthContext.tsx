@@ -72,7 +72,7 @@ interface WealthContextType {
   isAdminAuthenticated: boolean;
   setIsAdminAuthenticated: (v: boolean) => void;
   registeredUsers: AdminUser[];
-  deleteUser: (userId: string, reason?: string) => Promise<boolean>;
+  deleteUser: (userId: string, reason?: string, userEmail?: string) => Promise<boolean>;
   refreshAdminUsers: () => Promise<void>;
 
   // Financial Computations
@@ -186,16 +186,18 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // Lock Screen: If authenticated and pin is enabled, start locked on reload/reopen
   const [isLocked, setIsLocked] = useState<boolean>(() => {
     const isAuth = localStorage.getItem(STORAGE_KEYS.SESSION) === 'true';
+    const token = getAuthToken();
+    if (!isAuth || !token) return false;
     try {
       const savedUser = localStorage.getItem(STORAGE_KEYS.USER);
       if (savedUser) {
         const u = JSON.parse(savedUser);
-        if (isAuth && Boolean(u.isPinEnabled)) {
-          return true;
+        if (u.isPinEnabled === false && !u.pinCode) {
+          return false;
         }
       }
     } catch {}
-    return false;
+    return true;
   });
 
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -217,7 +219,25 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('login');
 
   // Admin session — indépendant de l'auth utilisateur
-  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
+  const [isAdminAuthenticated, setIsAdminAuthenticatedState] = useState<boolean>(() => {
+    try {
+      return (
+        sessionStorage.getItem('wf_admin_authenticated') === 'true' &&
+        Boolean(localStorage.getItem('wf_admin_auth_token'))
+      );
+    } catch {
+      return false;
+    }
+  });
+
+  const setIsAdminAuthenticated = (v: boolean) => {
+    setIsAdminAuthenticatedState(v);
+    if (v) {
+      sessionStorage.setItem('wf_admin_authenticated', 'true');
+    } else {
+      sessionStorage.removeItem('wf_admin_authenticated');
+    }
+  };
 
   // Charger les données distantes depuis l'API Backend Supabase
   const refreshRemoteData = useCallback(async () => {
@@ -233,22 +253,32 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       if (profileRes.success && profileRes.data) {
         const u = profileRes.data.user || profileRes.data;
         const pinEnabled = Boolean(u.isPinEnabled);
-        if (pinEnabled && sessionStorage.getItem('wf_session_unlocked') !== 'true') {
-          setIsLocked(true);
-        }
-        setUserProfile((prev) => ({
-          ...prev,
-          name: `${u.prenom || ''} ${u.nom || ''}`.trim() || prev.name,
-          email: u.email || prev.email,
-          phone: u.numero || prev.phone,
-          currency: u.currency || prev.currency,
-          language: u.language || prev.language,
-          timezone: u.timezone || prev.timezone,
-          dateFormat: u.dateFormat || prev.dateFormat,
-          plan: u.plan || prev.plan,
-          role: u.role || prev.role || 'user',
-          isPinEnabled: pinEnabled,
-        }));
+        
+        // Ne pas modifier isLocked ici - c'est géré par login() et unlockWithPin()
+        // refreshRemoteData() ne doit que mettre à jour le profil
+        
+        setUserProfile((prev) => {
+          const pinEnabled = prev.pinCode ? true : Boolean(u.isPinEnabled ?? prev.isPinEnabled);
+          const updatedProfile: UserProfile = {
+            ...prev,
+            // FIX Bug 5 : mapper l'id réel de l'utilisateur pour les tickets support
+            id: u.id || prev.id,
+            name: `${u.prenom || ''} ${u.nom || ''}`.trim() || prev.name,
+            email: u.email || prev.email,
+            phone: u.numero || prev.phone,
+            currency: u.currency || prev.currency,
+            language: u.language || prev.language,
+            timezone: u.timezone || prev.timezone,
+            dateFormat: u.dateFormat || prev.dateFormat,
+            plan: u.plan || prev.plan,
+            role: u.role || prev.role || 'user',
+            isPinEnabled: pinEnabled,
+          };
+          try {
+            localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(updatedProfile));
+          } catch {}
+          return updatedProfile;
+        });
       } else if (
         profileRes.message?.includes('introuvable') ||
         profileRes.message?.includes('supprimé') ||
@@ -292,7 +322,7 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
       // 4. Catégories
       const catRes = await api.categories.getAll();
-      const catData = catRes.data?.categories || catRes.data;
+      const catData = (catRes.data as any)?.categories || catRes.data;
       if (catRes.success && Array.isArray(catData) && catData.length > 0) {
         const remoteCats: Category[] = catData.map((c: any) => ({
           id: c.id,
@@ -335,7 +365,7 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
       // 6. Notifications
       const notifRes = await api.notifications.getAll();
-      const notifData = notifRes.data?.notifications || notifRes.data;
+      const notifData = (notifRes.data as any)?.notifications || notifRes.data;
       if (notifRes.success && Array.isArray(notifData)) {
         const remoteNotifs: NotificationItem[] = notifData.map((n: any) => ({
           id: n.id,
@@ -364,19 +394,62 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, [isAuthenticated, refreshRemoteData]);
 
+  // Vérifier le verrouillage au démarrage de l'application
+  // FIX Bug 1 : checkLockOnStartup vérifie l'état réel de la session.
+  // Si session active et PIN activé -> verrouille immédiatement avant le dashboard.
+  useEffect(() => {
+    const checkLockOnStartup = async () => {
+      const token = getAuthToken();
+      const isAuth = localStorage.getItem(STORAGE_KEYS.SESSION) === 'true';
+      
+      if (!token || !isAuth) {
+        // Pas de session active → déverrouiller (utilisateur déconnecté)
+        setIsLocked(false);
+        return;
+      }
+
+      try {
+        const savedUser = localStorage.getItem(STORAGE_KEYS.USER);
+        let pinEnabled = true;
+        if (savedUser) {
+          const u = JSON.parse(savedUser);
+          if (u.isPinEnabled === false && !u.pinCode) {
+            pinEnabled = false;
+          }
+        }
+
+        if (pinEnabled) {
+          // Utilisateur connecté revenant sur le site avec PIN activé -> verrouiller
+          setIsLocked(true);
+        } else {
+          // Pas de PIN configuré du tout → accès libre
+          setIsLocked(false);
+        }
+      } catch (err) {
+        console.warn('[WealthFlow] Erreur lors de la vérification du verrouillage:', err);
+      }
+    };
+
+    checkLockOnStartup();
+  }, []); // Exécuter une seule fois au démarrage
+
   // Auth methods
-  const login = async (credentials?: { email?: string; name?: string; pinCode?: string; role?: string }) => {
+  const login = async (credentials?: { id?: string; email?: string; name?: string; pinCode?: string; role?: string }) => {
     // Utiliser le rôle passé depuis l'API login (source de vérité)
     const userRole = credentials?.role || 'user';
+    
+    // Déterminer si le PIN est activé
+    const pinEnabled = Boolean(credentials?.pinCode || userProfile.pinCode);
 
     const updated = {
       ...userProfile,
+      id: credentials?.id || userProfile.id,
       name: credentials?.name || userProfile.name,
       email: credentials?.email || userProfile.email,
       pinCode: credentials?.pinCode || userProfile.pinCode,
-      isPinEnabled: Boolean(credentials?.pinCode || userProfile.pinCode),
+      isPinEnabled: pinEnabled,
     };
-    if (credentials?.email || credentials?.name || credentials?.pinCode) {
+    if (credentials?.email || credentials?.name || credentials?.pinCode || credentials?.id) {
       setUserProfile(updated);
       localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(updated));
     }
@@ -394,8 +467,9 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setActiveTab('dashboard');
     }
 
+    // L'utilisateur vient d'entrer ses identifiants avec succès → déverrouiller
     setIsLocked(false);
-    sessionStorage.setItem('wf_session_unlocked', 'true');
+    
     refreshRemoteData();
   };
 
@@ -506,6 +580,57 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const monthlyBudgetRemaining = Math.max(0, monthlyBudgetTotal - monthlyBudgetSpent);
 
   const savingsRate = totalIncome > 0 ? Math.round(((totalIncome - totalExpenses) / totalIncome) * 100) : 0;
+
+  // Calcul dynamique des flux mensuels pour les graphiques (Revenus, Dépenses, Épargne)
+  const chartData = useMemo<MonthlyChartData[]>(() => {
+    const monthDefs = [
+      { month: 'Janv.', fullMonth: 'Janvier', num: 0 },
+      { month: 'Févr.', fullMonth: 'Février', num: 1 },
+      { month: 'Mars', fullMonth: 'Mars', num: 2 },
+      { month: 'Avr.', fullMonth: 'Avril', num: 3 },
+      { month: 'Mai', fullMonth: 'Mai', num: 4 },
+      { month: 'Juin', fullMonth: 'Juin', num: 5 },
+      { month: 'Juil.', fullMonth: 'Juillet', num: 6 },
+      { month: 'Août', fullMonth: 'Août', num: 7 },
+      { month: 'Sept.', fullMonth: 'Septembre', num: 8 },
+      { month: 'Oct.', fullMonth: 'Octobre', num: 9 },
+      { month: 'Nov.', fullMonth: 'Novembre', num: 10 },
+      { month: 'Déc.', fullMonth: 'Décembre', num: 11 },
+    ];
+
+    const aggregated = monthDefs.map((m) => {
+      let rev = 0;
+      let dep = 0;
+      let ep = 0;
+      transactions.forEach((t) => {
+        const d = new Date(t.date);
+        if (!isNaN(d.getTime()) && d.getMonth() === m.num) {
+          if (t.type === 'income') rev += t.amount;
+          else if (t.type === 'expense') dep += t.amount;
+          else if (t.type === 'savings_deposit') ep += t.amount;
+        }
+      });
+      return {
+        month: m.month,
+        fullMonth: m.fullMonth,
+        revenus: rev,
+        depenses: dep,
+        epargne: ep,
+      };
+    });
+
+    const hasData = aggregated.some((m) => m.revenus > 0 || m.depenses > 0 || m.epargne > 0);
+    if (!hasData) {
+      return initialChartData;
+    }
+
+    return aggregated.map((agg, idx) => {
+      if (agg.revenus === 0 && agg.depenses === 0 && agg.epargne === 0 && initialChartData[idx]) {
+        return initialChartData[idx];
+      }
+      return agg;
+    });
+  }, [transactions]);
 
   // Calcul dynamique et intelligent de la santé financière (0 à 100%)
   const financialHealthScore = useMemo(() => {
@@ -622,25 +747,35 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   ]);
 
   // Suppression et bannissement d'un utilisateur par l'administrateur (avec motif réel)
-  const deleteUser = async (userId: string, reason?: string): Promise<boolean> => {
+  const deleteUser = async (userId: string, reason?: string, userEmail?: string): Promise<boolean> => {
+    let success = false;
     try {
-      await api.admin.deleteUser(userId, reason);
+      const res = await api.admin.deleteUser(userId, reason, userEmail);
+      success = Boolean(res.success);
     } catch (e) {
       console.warn('[WealthFlow API] Erreur lors de la suppression distante:', e);
     }
 
     setRegisteredUsers((prev) => {
-      const updated = prev.filter((u) => u.id !== userId);
+      const updated = prev.filter(
+        (u) =>
+          u.id !== userId &&
+          (!userEmail || u.email.toLowerCase() !== userEmail.toLowerCase())
+      );
       localStorage.setItem(STORAGE_KEYS.REGISTERED_USERS, JSON.stringify(updated));
       return updated;
     });
 
     // Si l'utilisateur supprimé est la session active, le déconnecter
-    const toDelete = registeredUsers.find((u) => u.id === userId);
+    const toDelete = registeredUsers.find(
+      (u) =>
+        u.id === userId ||
+        (userEmail && u.email.toLowerCase() === userEmail.toLowerCase())
+    );
     if (toDelete && toDelete.email.toLowerCase() === userProfile.email?.toLowerCase()) {
       logout();
     }
-    return true;
+    return success;
   };
 
   const refreshAdminUsers = async () => {
@@ -762,7 +897,9 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const deleteSavingsGoal = async (id: string) => {
+    // Suppression optimiste immédiate
     setSavingsGoals((prev) => prev.filter((g) => g.id !== id));
+    
     try {
       await api.savings.delete(id);
     } catch (err) {
@@ -774,12 +911,13 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const numericAmount = Number(amount);
     if (!numericAmount || numericAmount <= 0) return;
 
-    // 1. Mettre à jour immédiatement le montant de l'objectif ciblé
+    // FIX Bug 2 : Optimistic update immédiat — plus de re-fetch qui écrasait l'état
+    // 1. Mettre à jour immédiatement le montant de l'objectif ciblé (optimistic update)
     setSavingsGoals((prev) =>
       prev.map((g) => (g.id === id ? { ...g, currentAmount: g.currentAmount + numericAmount } : g))
     );
 
-    // 2. Ajouter immédiatement la transaction de versement d'épargne
+    // 2. Ajouter immédiatement la transaction de versement d'épargne (optimistic)
     const goalTitle = savingsGoals.find((g) => g.id === id)?.title || 'Objectif';
     const tempTxId = `tx-dep-${Date.now()}`;
     const newTx: Transaction = {
@@ -788,6 +926,7 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       amount: numericAmount,
       type: 'savings_deposit',
       category: 'Épargne & Investissement',
+      categoryId: 'default-epargne-auto',
       account: 'Compte principal',
       date: new Date().toISOString().split('T')[0],
       time: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
@@ -801,20 +940,39 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         date: new Date().toISOString(),
       });
       if (res.success) {
-        refreshRemoteData();
+        // Synchroniser uniquement l'ID réel de la transaction (remplacer tempId)
+        // Ne PAS re-fetcher toute la liste pour ne pas écraser l'optimistic update
+        const depositData = res.data?.deposit || res.data;
+        const realTxId = depositData?.transaction?.id || depositData?.transactionId;
+        if (realTxId) {
+          setTransactions((prev) =>
+            prev.map((t) => (t.id === tempTxId ? { ...t, id: realTxId } : t))
+          );
+        }
+        // Synchroniser le currentAmount exact depuis le backend pour cet objectif seulement
+        const goalId = id;
+        const remoteGoalAmount = res.data?.goal?.currentAmount;
+        if (typeof remoteGoalAmount === 'number') {
+          setSavingsGoals((prev) =>
+            prev.map((g) => (g.id === goalId ? { ...g, currentAmount: remoteGoalAmount } : g))
+          );
+        }
       }
     } catch (err) {
       console.warn('[WealthFlow API] Erreur lors du dépôt d\'épargne:', err);
+      // En cas d'erreur, l'optimistic update reste visible (meilleure UX)
     }
   };
 
   const toggleGoalCheckbox = async (goalId: string, boxIndex: number) => {
+    // FIX Bug 3 : Optimistic update immédiat — suppression du re-fetch qui écrasait le calcul local
     let updatedCheckedBoxes: number[] = [];
+    let newCurrentAmount = 0;
 
     setSavingsGoals((prev) =>
       prev.map((goal) => {
         if (goal.id !== goalId) return goal;
-        const checkedSet = new Set(goal.checkedBoxes || []);
+        const checkedSet = new Set<number>(goal.checkedBoxes || []);
         const totalBoxes = goal.checkboxesCount || 10;
         const unitValue = goal.targetAmount / totalBoxes;
 
@@ -828,7 +986,7 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         updatedCheckedBoxes = Array.from(checkedSet);
         const diffCount = wasChecked ? -1 : 1;
         const deltaAmount = Math.round(unitValue * diffCount);
-        const newCurrentAmount = Math.min(
+        newCurrentAmount = Math.min(
           goal.targetAmount,
           Math.max(0, goal.currentAmount + deltaAmount)
         );
@@ -842,9 +1000,16 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     );
 
     try {
-      await api.savings.update(goalId, { checkedBoxes: updatedCheckedBoxes });
+      // Persister les cases cochées ET le currentAmount calculé localement en backend
+      // Le backend stocke checkedBoxes et currentAmount (calculé côté frontend pour éviter double-comptage)
+      await api.savings.update(goalId, {
+        checkedBoxes: updatedCheckedBoxes,
+        currentAmount: newCurrentAmount,
+      });
+      // PAS de re-fetch api.savings.getAll() ici — l'optimistic update est la source de vérité
     } catch (err) {
       console.warn('[WealthFlow API] Erreur mise à jour cases épargne:', err);
+      // En cas d'erreur, l'optimistic update reste visible
     }
   };
 
@@ -1092,7 +1257,7 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         markNotificationAsRead,
         markAllNotificationsAsRead,
         deleteNotification,
-        chartData: [],
+        chartData,
         isLocked,
         unlockWithPin,
         lockApp,

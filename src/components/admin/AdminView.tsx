@@ -116,12 +116,29 @@ export const AdminView: React.FC = () => {
   const [siteSettingsDraft, setSiteSettingsDraft] = useState<SiteSettings>(loadSiteSettings);
   const [settingsSaved, setSettingsSaved] = useState(false);
   const [banReason, setBanReason] = useState('');
-  const [bansList, setBansList] = useState<any[]>([]);
+  const [bansList, setBansList] = useState<any[]>(() => {
+    try {
+      const saved = localStorage.getItem('wf_admin_bans_list_v2');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
   const [ticketsList, setTicketsList] = useState<any[]>([]);
   const [legalDraft, setLegalDraft] = useState({ termsOfService: '', privacyPolicy: '' });
   const [legalSaved, setLegalSaved] = useState(false);
   const [legalLoading, setLegalLoading] = useState(false);
   const [maintenanceSaved, setMaintenanceSaved] = useState(false);
+  const [broadcastTitle, setBroadcastTitle] = useState('');
+  const [broadcastMessage, setBroadcastMessage] = useState('');
+  const [broadcastType, setBroadcastType] = useState('info');
+  const [isBroadcasting, setIsBroadcasting] = useState(false);
+
+  // Modal d'ajout manuel d'un bannissement
+  const [isManualBanModalOpen, setIsManualBanModalOpen] = useState(false);
+  const [manualBanEmail, setManualBanEmail] = useState('');
+  const [manualBanReason, setManualBanReason] = useState('');
+  const [manualBanLoading, setManualBanLoading] = useState(false);
 
   const fetchTickets = async () => {
     try {
@@ -153,6 +170,9 @@ export const AdminView: React.FC = () => {
           ? (res.data as any).data
           : [];
         setBansList(list);
+        try {
+          localStorage.setItem('wf_admin_bans_list_v2', JSON.stringify(list));
+        } catch {}
       }
     } catch (e) {
       console.error('[AdminView] Erreur chargement bans:', e);
@@ -235,7 +255,47 @@ export const AdminView: React.FC = () => {
     if (!userToDelete) return;
     setDeleteLoading(true);
     const finalReason = banReason.trim() || 'Non-respect des Conditions Générales d\'Utilisation de WealthFlow';
-    await deleteUser(userToDelete.id, finalReason);
+    const emailToDelete = userToDelete.email;
+    const nameParts = (userToDelete.name || '').split(' ');
+    const prenom = nameParts[0] || '';
+    const nom = nameParts.slice(1).join(' ') || '';
+
+    // 1. Ajout optimiste immédiat dans la liste locale des bannis pour affichage instantané
+    const newBanItem = {
+      id: `ban-${Date.now()}`,
+      email: emailToDelete,
+      nom,
+      prenom,
+      reason: finalReason,
+      bannedAt: new Date().toISOString(),
+      bannedBy: 'Administrateur',
+    };
+
+    setBansList((prev) => {
+      const filtered = prev.filter((b) => b.email.toLowerCase() !== emailToDelete.toLowerCase());
+      const updated = [newBanItem, ...filtered];
+      try {
+        localStorage.setItem('wf_admin_bans_list_v2', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+
+    // 2. Supprimer l'utilisateur et ses données via l'API & le contexte
+    await deleteUser(userToDelete.id, finalReason, emailToDelete);
+
+    // 3. Enregistrer également de manière explicite le ban auprès de l'API
+    try {
+      await api.admin.banUser({
+        email: emailToDelete,
+        reason: finalReason,
+        nom: nom || undefined,
+        prenom: prenom || undefined,
+        deleteAccount: true,
+      });
+    } catch (err) {
+      console.warn('[AdminView] Erreur appel banUser:', err);
+    }
+
     if (selectedUser?.id === userToDelete.id) {
       setSelectedUser(null);
     }
@@ -244,8 +304,68 @@ export const AdminView: React.FC = () => {
     setBanReason('');
     setActionFeedback(`Compte banni et supprimé pour le motif : "${finalReason}"`);
     setTimeout(() => setActionFeedback(null), 3500);
-    // Rafraîchir la liste des bans
-    api.admin.getBans().then((r) => { if (r.success) setBansList(r.data as any[] || []); }).catch(() => {});
+
+    // 4. Synchronisation complète des utilisateurs et des bannis
+    await Promise.all([
+      refreshAdminUsers(),
+      fetchBans(),
+    ]);
+  };
+
+  // Ajout manuel direct d'un bannissement
+  const handleCreateManualBan = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!manualBanEmail.trim() || !manualBanEmail.includes('@')) {
+      alert('Veuillez renseigner une adresse email valide.');
+      return;
+    }
+
+    setManualBanLoading(true);
+    const cleanEmail = manualBanEmail.trim().toLowerCase();
+    const finalReason = manualBanReason.trim() || 'Sanction administrative directe';
+
+    const newBanItem = {
+      id: `ban-${Date.now()}`,
+      email: cleanEmail,
+      nom: '',
+      prenom: '',
+      reason: finalReason,
+      bannedAt: new Date().toISOString(),
+      bannedBy: 'Administrateur',
+    };
+
+    setBansList((prev) => {
+      const filtered = prev.filter((b) => b.email.toLowerCase() !== cleanEmail);
+      const updated = [newBanItem, ...filtered];
+      try {
+        localStorage.setItem('wf_admin_bans_list_v2', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+
+    try {
+      await api.admin.banUser({
+        email: cleanEmail,
+        reason: finalReason,
+        deleteAccount: true,
+      });
+      // Si un utilisateur enregistré a cet email, le supprimer aussi
+      const matchingUser = registeredUsers.find((u) => u.email.toLowerCase() === cleanEmail);
+      if (matchingUser) {
+        await deleteUser(matchingUser.id, finalReason, cleanEmail);
+      }
+    } catch (err) {
+      console.warn('Erreur bannissement manuel:', err);
+    } finally {
+      setManualBanLoading(false);
+      setIsManualBanModalOpen(false);
+      setManualBanEmail('');
+      setManualBanReason('');
+      setActionFeedback(`Le compte ${cleanEmail} a été banni avec succès.`);
+      setTimeout(() => setActionFeedback(null), 3500);
+      refreshAdminUsers();
+      fetchBans();
+    }
   };
 
   // Statistiques globales agrégées
@@ -309,13 +429,9 @@ export const AdminView: React.FC = () => {
 
   // Diffuser une notification globale à tous les utilisateurs (ou ciblée)
   const handleBroadcastNotification = async () => {
-    const titleEl = document.getElementById('notif-title') as HTMLInputElement | null;
-    const msgEl = document.getElementById('notif-message') as HTMLTextAreaElement | null;
-    const typeEl = document.getElementById('notif-type') as HTMLSelectElement | null;
-
-    const title = titleEl?.value?.trim() || '';
-    const message = msgEl?.value?.trim() || '';
-    const type = typeEl?.value || 'info';
+    const title = broadcastTitle.trim();
+    const message = broadcastMessage.trim();
+    const type = broadcastType || 'info';
 
     if (!title || !message) {
       setActionFeedback('Veuillez saisir le titre et le message de la notification');
@@ -323,6 +439,7 @@ export const AdminView: React.FC = () => {
       return;
     }
 
+    setIsBroadcasting(true);
     try {
       const res = await api.admin.broadcastNotification({
         title,
@@ -333,14 +450,16 @@ export const AdminView: React.FC = () => {
 
       if (res.success) {
         setActionFeedback(res.message || 'Notification diffusée à tous les utilisateurs avec succès');
-        if (titleEl) titleEl.value = '';
-        if (msgEl) msgEl.value = '';
+        setBroadcastTitle('');
+        setBroadcastMessage('');
       } else {
         setActionFeedback(res.message || 'Erreur lors de l’envoi de la notification');
       }
     } catch (e: any) {
       console.error('[AdminView] Erreur diffusion notification:', e);
       setActionFeedback(e?.message || 'Erreur lors de l’envoi de la notification');
+    } finally {
+      setIsBroadcasting(false);
     }
     setTimeout(() => setActionFeedback(null), 3500);
   };
@@ -376,15 +495,19 @@ export const AdminView: React.FC = () => {
   // Révocation d'un bannissement
   const handleUnban = async (id: string, email: string) => {
     try {
-      const res = await api.admin.removeBan(id);
-      if (res.success) {
-        setBansList((prev) => prev.filter((b) => b.id !== id));
-        setActionFeedback(`Bannissement levé pour ${email}`);
-        setTimeout(() => setActionFeedback(null), 2500);
-      }
+      await api.admin.removeBan(id);
     } catch (e) {
-      console.error(e);
+      console.warn('Erreur lever ban:', e);
     }
+    setBansList((prev) => {
+      const updated = prev.filter((b) => b.id !== id && b.email.toLowerCase() !== email.toLowerCase());
+      try {
+        localStorage.setItem('wf_admin_bans_list_v2', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+    setActionFeedback(`Bannissement levé pour ${email}`);
+    setTimeout(() => setActionFeedback(null), 2500);
   };
 
   // Mettre à jour le statut d'un ticket avec réponse optionnelle
@@ -403,48 +526,9 @@ export const AdminView: React.FC = () => {
     }
   };
 
-  // Diffuser une notification à tous les utilisateurs
-  const handleBroadcastNotification = async () => {
-    const titleInput = document.getElementById('notif-title') as HTMLInputElement;
-    const messageInput = document.getElementById('notif-message') as HTMLTextAreaElement;
-    const typeInput = document.getElementById('notif-type') as HTMLSelectElement;
-
-    const title = titleInput?.value?.trim();
-    const message = messageInput?.value?.trim();
-    const type = typeInput?.value || 'info';
-
-    if (!title || !message) {
-      setActionFeedback('⚠️ Veuillez remplir le titre et le message');
-      setTimeout(() => setActionFeedback(null), 2000);
-      return;
-    }
-
-    try {
-      const res = await api.admin.broadcastNotification({
-        title,
-        message,
-        type,
-        targetUserId: 'all',
-      });
-
-      if (res.success) {
-        setActionFeedback(`✅ Notification diffusée à tous les utilisateurs`);
-        // Vider les champs
-        if (titleInput) titleInput.value = '';
-        if (messageInput) messageInput.value = '';
-        setTimeout(() => setActionFeedback(null), 3000);
-      } else {
-        setActionFeedback(`❌ ${res.message || 'Erreur lors de l\'envoi'}`);
-        setTimeout(() => setActionFeedback(null), 3000);
-      }
-    } catch (e) {
-      console.error(e);
-      setActionFeedback('❌ Erreur de connexion au serveur');
-      setTimeout(() => setActionFeedback(null), 3000);
-    }
-  };
-
   const handleAdminLogout = () => {
+    api.admin.clearAdminToken();
+    sessionStorage.removeItem('wf_admin_authenticated');
     setIsAdminAuthenticated(false);
     setActiveTab('dashboard');
   };
@@ -770,7 +854,17 @@ export const AdminView: React.FC = () => {
                           setUserToDelete(u);
                         }}
                         className="p-1.5 rounded-lg text-[#A1A1AA] hover:text-[#EF4444] hover:bg-[#EF4444]/10 transition-colors cursor-pointer"
-                        title="Supprimer l'utilisateur"
+                        title="Bannir ou supprimer cet utilisateur"
+                      >
+                        <Shield className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setUserToDelete(u);
+                        }}
+                        className="p-1.5 rounded-lg text-[#A1A1AA] hover:text-[#EF4444] hover:bg-[#EF4444]/10 transition-colors cursor-pointer"
+                        title="Supprimer définitivement ce compte"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -1105,28 +1199,47 @@ export const AdminView: React.FC = () => {
               <div className="bg-white border border-[#E8E8E8] rounded-xl p-4 space-y-3">
                 <div>
                   <label className="text-[11px] font-bold text-[#18181B] block mb-1.5">Titre de la notification</label>
-                  <input type="text" placeholder="Ex: Mise à jour de la politique de confidentialité"
+                  <input
+                    type="text"
+                    placeholder="Ex: Mise à jour de la politique de confidentialité"
                     className="w-full px-3 py-2.5 bg-[#F7F7F7] border border-[#E8E8E8] rounded-xl text-sm font-semibold text-[#18181B] focus:outline-none focus:border-[#FF5330]"
-                    id="notif-title" />
+                    id="notif-title"
+                    value={broadcastTitle}
+                    onChange={(e) => setBroadcastTitle(e.target.value)}
+                  />
                 </div>
                 <div>
                   <label className="text-[11px] font-bold text-[#18181B] block mb-1.5">Message</label>
-                  <textarea rows={4} placeholder="Rédigez ici le contenu de la notification..."
+                  <textarea
+                    rows={4}
+                    placeholder="Rédigez ici le contenu de la notification..."
                     className="w-full px-3 py-2.5 bg-[#F7F7F7] border border-[#E8E8E8] rounded-xl text-sm text-[#18181B] focus:outline-none focus:border-[#FF5330] resize-none"
-                    id="notif-message" />
+                    id="notif-message"
+                    value={broadcastMessage}
+                    onChange={(e) => setBroadcastMessage(e.target.value)}
+                  />
                 </div>
                 <div className="flex items-center gap-2">
-                  <select className="flex-1 px-3 py-2 bg-[#F7F7F7] border border-[#E8E8E8] rounded-xl text-xs font-semibold text-[#18181B] focus:outline-none focus:border-[#FF5330]"
-                    id="notif-type">
+                  <select
+                    className="flex-1 px-3 py-2 bg-[#F7F7F7] border border-[#E8E8E8] rounded-xl text-xs font-semibold text-[#18181B] focus:outline-none focus:border-[#FF5330]"
+                    id="notif-type"
+                    value={broadcastType}
+                    onChange={(e) => setBroadcastType(e.target.value)}
+                  >
                     <option value="info">ℹ️ Information</option>
                     <option value="warning">⚠️ Avertissement</option>
                     <option value="success">✅ Succès</option>
                     <option value="alert">🔴 Alerte</option>
                   </select>
-                  <button onClick={handleBroadcastNotification}
-                    className="px-4 py-2 rounded-xl bg-[#FF5330] hover:bg-[#E04524] text-white text-xs font-bold cursor-pointer transition-all active:scale-95 shadow-sm inline-flex items-center gap-1.5">
+                  <button
+                    onClick={handleBroadcastNotification}
+                    disabled={isBroadcasting}
+                    className={`px-4 py-2 rounded-xl bg-[#FF5330] hover:bg-[#E04524] text-white text-xs font-bold cursor-pointer transition-all active:scale-95 shadow-sm inline-flex items-center gap-1.5 ${
+                      isBroadcasting ? 'opacity-60 cursor-not-allowed' : ''
+                    }`}
+                  >
                     <Bell className="w-3.5 h-3.5" />
-                    Diffuser à tous
+                    {isBroadcasting ? 'Envoi...' : 'Diffuser à tous'}
                   </button>
                 </div>
                 <p className="text-[10px] text-[#6F6F73] italic">
@@ -1207,16 +1320,25 @@ export const AdminView: React.FC = () => {
       case 'bans':
         return (
           <div className="space-y-5">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <h2 className="text-xl font-black text-[#18181B] tracking-tight">Comptes bannis & Historique</h2>
                 <p className="text-xs text-[#6F6F73] mt-0.5">
                   Gestion des sanctions et des motifs réels affichés aux utilisateurs dans le Centre d'aide
                 </p>
               </div>
-              <span className="px-2.5 py-1 rounded-lg bg-[#EF4444]/10 text-[#EF4444] text-xs font-bold">
-                {bansList.length} banni{bansList.length > 1 ? 's' : ''}
-              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setIsManualBanModalOpen(true)}
+                  className="px-3 py-1.5 rounded-xl bg-[#18181B] hover:bg-[#27272A] text-white text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs active:scale-95"
+                >
+                  <Shield className="w-3.5 h-3.5 text-[#EF4444]" />
+                  <span>+ Bannir un compte</span>
+                </button>
+                <span className="px-2.5 py-1 rounded-lg bg-[#EF4444]/10 text-[#EF4444] text-xs font-bold">
+                  {bansList.length} banni{bansList.length > 1 ? 's' : ''}
+                </span>
+              </div>
             </div>
 
             {bansList.length === 0 ? (
@@ -1611,9 +1733,90 @@ export const AdminView: React.FC = () => {
                   disabled={deleteLoading}
                   className="flex-1 py-2.5 rounded-xl bg-[#EF4444] hover:bg-[#DC2626] text-white font-bold text-xs shadow-sm transition-colors cursor-pointer disabled:opacity-50"
                 >
-                  {deleteLoading ? 'Suppression...' : 'Supprimer'}
+                  {deleteLoading ? 'Suppression...' : 'Supprimer et bannir'}
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal de bannissement direct d'un compte */}
+        {isManualBanModalOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-150">
+            <div className="bg-white rounded-2xl max-w-sm w-full p-5 space-y-4 shadow-2xl border border-[#E8E8E8] animate-in zoom-in-95 duration-150">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-[#EF4444]/10 flex items-center justify-center text-[#EF4444] flex-shrink-0">
+                  <Shield className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-[#18181B]">Bannir un compte</h3>
+                  <p className="text-xs text-[#6F6F73]">Sanction administrative directe</p>
+                </div>
+              </div>
+
+              <form onSubmit={handleCreateManualBan} className="space-y-3">
+                <div>
+                  <label className="text-[11px] font-bold text-[#18181B] block mb-1">
+                    Adresse email du compte à bannir :
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    value={manualBanEmail}
+                    onChange={(e) => setManualBanEmail(e.target.value)}
+                    placeholder="ex: fraudeur@exemple.com"
+                    className="w-full px-3 py-2 bg-[#F7F7F7] border border-[#E8E8E8] rounded-xl text-xs text-[#18181B] focus:outline-none focus:border-[#FF5330]"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-bold text-[#18181B] block mb-1">
+                    Motif réel du bannissement :
+                  </label>
+                  <textarea
+                    value={manualBanReason}
+                    onChange={(e) => setManualBanReason(e.target.value)}
+                    placeholder="Ex: Non-respect des CGU, signalement d'escroquerie..."
+                    rows={2}
+                    className="w-full px-3 py-2 bg-[#F7F7F7] border border-[#E8E8E8] rounded-xl text-xs text-[#18181B] focus:outline-none focus:border-[#FF5330] resize-none"
+                  />
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {[
+                      "Non-respect des CGU",
+                      "Suspicion d'activité frauduleuse",
+                      "Comportement abusif",
+                      "Faux profil",
+                    ].map((preset) => (
+                      <button
+                        key={preset}
+                        type="button"
+                        onClick={() => setManualBanReason(preset)}
+                        className="text-[9px] px-2 py-0.5 rounded-md bg-[#F4F4F5] hover:bg-[#E4E4E7] text-[#52525B] transition-colors cursor-pointer"
+                      >
+                        {preset}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsManualBanModalOpen(false)}
+                    disabled={manualBanLoading}
+                    className="flex-1 py-2.5 rounded-xl bg-[#F7F7F7] hover:bg-[#E8E8E8] text-[#18181B] font-bold text-xs transition-colors cursor-pointer"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={manualBanLoading}
+                    className="flex-1 py-2.5 rounded-xl bg-[#EF4444] hover:bg-[#DC2626] text-white font-bold text-xs shadow-sm transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    {manualBanLoading ? 'Application...' : 'Confirmer le ban'}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}

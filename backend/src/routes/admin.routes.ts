@@ -3,6 +3,7 @@ import {
   adminLoginHandler,
   listAdminUsersHandler,
   deleteAdminUserHandler,
+  createBanHandler,
   listBansHandler,
   deleteBanHandler,
   listSupportTicketsHandler,
@@ -51,6 +52,12 @@ router.post('/notifications/broadcast', broadcastNotificationHandler);
  * @desc    Lister tous les comptes bannis et leurs motifs
  */
 router.get('/bans', listBansHandler);
+
+/**
+ * @route   POST /api/admin/bans
+ * @desc    Bannir directement un compte par email avec motif
+ */
+router.post('/bans', createBanHandler);
 
 /**
  * @route   DELETE /api/admin/bans/:id
