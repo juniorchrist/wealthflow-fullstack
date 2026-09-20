@@ -495,35 +495,85 @@ export const LandingView: React.FC = () => {
       {/* ===== FOOTER ===== */}
       <footer className="border-t border-[#E8E8E8] bg-[#F7F7F7]">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-12">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-8">
-            {/* Brand */}
-            <div className="col-span-2 sm:col-span-1">
-              <div className="mb-3">
+          {/* Brand header */}
+          <div className="mb-8 pb-8 border-b border-[#E8E8E8]/70 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              <div className="mb-2">
                 <BrandLogo size="sm" showBadge={false} withDarkContainer={false} useOfficialLogo={true} />
               </div>
-              <p className="text-xs text-[#6F6F73] leading-relaxed max-w-xs">
+              <p className="text-xs text-[#6F6F73] leading-relaxed max-w-sm">
                 Gestion financière personnelle simple, sécurisée et efficace.
               </p>
             </div>
+            <div className="flex items-center gap-2 text-[11px] text-[#6F6F73] bg-white border border-[#E8E8E8] px-3 py-1.5 rounded-full self-start md:self-auto shadow-2xs">
+              <span className="w-2 h-2 rounded-full bg-[#10B981] animate-pulse" />
+              <span>Système 100% sécurisé & chiffré</span>
+            </div>
+          </div>
 
-            {/* Product */}
+          {/* Links Grid: 2 columns on mobile, 4 columns on md+ */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-8">
+            {/* Produit */}
             <div>
-              <h4 className="text-xs font-bold text-[#18181B] uppercase tracking-wider mb-3">Produit</h4>
-              <ul className="space-y-2">
-                <li><a href="#features" className="text-xs text-[#6F6F73] transition-colors">Fonctionnalités</a></li>
-                <li><a href="#how-it-works" className="text-xs text-[#6F6F73] transition-colors">Comment ça marche</a></li>
-                <li><a href="#security" className="text-xs text-[#6F6F73] transition-colors">Sécurité</a></li>
+              <h4 className="text-xs font-bold text-[#18181B] uppercase tracking-wider mb-3.5">Produit</h4>
+              <ul className="space-y-2.5">
+                <li>
+                  <a href="#features" className="text-xs text-[#6F6F73] hover:text-[#FF5330] transition-colors block text-left">
+                    Fonctionnalités
+                  </a>
+                </li>
+                <li>
+                  <a href="#how-it-works" className="text-xs text-[#6F6F73] hover:text-[#FF5330] transition-colors block text-left">
+                    Comment ça marche
+                  </a>
+                </li>
+                <li>
+                  <a href="#security" className="text-xs text-[#6F6F73] hover:text-[#FF5330] transition-colors block text-left">
+                    Sécurité & Chiffrement
+                  </a>
+                </li>
               </ul>
             </div>
 
-            {/* Legal */}
+            {/* Aide & Support */}
             <div>
-              <h4 className="text-xs font-bold text-[#18181B] uppercase tracking-wider mb-3">Légal</h4>
-              <ul className="space-y-2">
+              <h4 className="text-xs font-bold text-[#18181B] uppercase tracking-wider mb-3.5">Aide</h4>
+              <ul className="space-y-2.5">
+                <li>
+                  <button
+                    onClick={() => { setLegalTab('faq'); setLegalModalOpen(true); }}
+                    className="text-xs text-[#6F6F73] hover:text-[#FF5330] transition-colors text-left block w-full cursor-pointer leading-snug"
+                  >
+                    Questions fréquentes (FAQ)
+                  </button>
+                </li>
+                <li>
+                  <button
+                    onClick={() => { setLegalTab('faq'); setLegalModalOpen(true); }}
+                    className="text-xs text-[#6F6F73] hover:text-[#FF5330] transition-colors text-left block w-full cursor-pointer leading-snug"
+                  >
+                    Centre d'aide
+                  </button>
+                </li>
+                <li>
+                  <button
+                    onClick={() => setContactModalOpen(true)}
+                    className="text-xs text-[#6F6F73] hover:text-[#FF5330] transition-colors text-left block w-full cursor-pointer leading-snug"
+                  >
+                    Assistance en direct
+                  </button>
+                </li>
+              </ul>
+            </div>
+
+            {/* Légal */}
+            <div>
+              <h4 className="text-xs font-bold text-[#18181B] uppercase tracking-wider mb-3.5">Légal</h4>
+              <ul className="space-y-2.5">
                 <li>
                   <button
                     onClick={() => { setLegalTab('terms'); setLegalModalOpen(true); }}
-                    className="text-xs text-[#6F6F73]"
+                    className="text-xs text-[#6F6F73] hover:text-[#FF5330] transition-colors text-left block w-full cursor-pointer leading-snug"
                   >
                     Conditions d'utilisation
                   </button>
@@ -531,63 +581,74 @@ export const LandingView: React.FC = () => {
                 <li>
                   <button
                     onClick={() => { setLegalTab('privacy'); setLegalModalOpen(true); }}
-                    className="text-xs text-[#6F6F73]"
+                    className="text-xs text-[#6F6F73] hover:text-[#FF5330] transition-colors text-left block w-full cursor-pointer leading-snug"
                   >
                     Politique de confidentialité
                   </button>
                 </li>
                 <li>
                   <button
-                    onClick={() => { setLegalTab('faq'); setLegalModalOpen(true); }}
-                    className="text-xs text-[#18181B]"
+                    onClick={() => { setLegalTab('privacy'); setLegalModalOpen(true); }}
+                    className="text-xs text-[#6F6F73] hover:text-[#FF5330] transition-colors text-left block w-full cursor-pointer leading-snug"
                   >
-                    FAQ
+                    Protection des données
                   </button>
                 </li>
               </ul>
             </div>
 
-            {/* Support */}
+            {/* Contact */}
             <div>
-              <h4 className="text-xs font-bold text-[#18181B] uppercase tracking-wider mb-3">Aide</h4>
-              <ul className="space-y-2">
-                <li><span className="text-xs text-[#6F6F73]">Centre d'aide</span></li>
+              <h4 className="text-xs font-bold text-[#18181B] uppercase tracking-wider mb-3.5">Contact</h4>
+              <ul className="space-y-2.5">
                 <li>
                   <button
                     onClick={() => setContactModalOpen(true)}
-                    className="text-xs text-[#6F6F73]"
+                    className="text-xs text-[#6F6F73] hover:text-[#FF5330] transition-colors text-left block w-full cursor-pointer leading-snug"
                   >
-                    Contact
+                    Nous contacter
                   </button>
+                </li>
+                <li>
+                  <a
+                    href={`mailto:${supportEmail}`}
+                    className="text-xs text-[#6F6F73] hover:text-[#FF5330] transition-colors block text-left truncate"
+                  >
+                    {supportEmail}
+                  </a>
+                </li>
+                <li>
+                  <span className="text-[11px] text-[#A1A1AA] block text-left leading-tight">
+                    Disponible 7j/7 • Côte d'Ivoire
+                  </span>
                 </li>
               </ul>
             </div>
           </div>
 
           {/* Bottom bar */}
-          <div className="mt-8 pt-6 border-t border-[#E8E8E8] flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="mt-10 pt-6 border-t border-[#E8E8E8] flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
             <p className="text-[11px] text-[#A1A1AA]">
               &copy; {new Date().getFullYear()} WealthFlow. Tous droits réservés.
             </p>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2.5">
               <p className="text-[11px] text-[#A1A1AA]">
-                Conçu avec soin pour votre finances.
+                Conçu avec soin pour vos finances.
               </p>
-              {/* Cadenas admin — visible seulement au hover, discret */}
+              {/* Cadenas admin — discret */}
               <button
                 onMouseEnter={() => setAdminLockHovered(true)}
                 onMouseLeave={() => setAdminLockHovered(false)}
                 onClick={() => setAdminLoginOpen(true)}
                 title=""
                 aria-label="Accès restreint"
-                className="group relative flex items-center justify-center w-6 h-6 rounded-md transition-all duration-200 cursor-pointer"
+                className="group relative flex items-center justify-center w-5 h-5 rounded-md transition-all duration-200 cursor-pointer"
               >
                 <Lock
                   className={`w-3 h-3 transition-all duration-200 ${
-                    adminLockHovered ? 'text-[#A1A1AA]' : 'text-[#E8E8E8]'
+                    adminLockHovered ? 'text-[#A1A1AA]' : 'text-[#D4D4D8]'
                   }`}
                 />
-                {/* Tooltip au hover */}
                 {adminLockHovered && (
                   <span className="absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap px-2 py-0.5 rounded-md bg-[#18181B] text-white text-[9px] font-bold pointer-events-none">
                     Admin
