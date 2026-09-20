@@ -172,6 +172,7 @@ export const listAdminUsersHandler = async (
       const currentMonth = now.getMonth();
 
       // Dépenses réelles du mois courant pour l'utilisation du budget
+      // IMPORTANT : Utiliser strictement les dépenses du mois courant, même si elles sont à 0
       const currentMonthExpenses = u.transactions
         .filter((t) => {
           if (t.type !== 'expense') return false;
@@ -180,7 +181,8 @@ export const listAdminUsersHandler = async (
         })
         .reduce((sum, t) => sum + Number(t.amount || 0), 0);
 
-      const budgetSpent = currentMonthExpenses > 0 ? currentMonthExpenses : expenses;
+      // budgetSpent = dépenses du mois courant uniquement (source de vérité)
+      const budgetSpent = currentMonthExpenses;
       const budgetUsagePercentage =
         budgetTotal > 0 ? Math.min(100, Math.round((budgetSpent / budgetTotal) * 100)) : 0;
 

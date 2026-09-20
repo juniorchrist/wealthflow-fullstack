@@ -2,15 +2,47 @@
 <html lang="fr">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    
+    <!-- Titre et Description -->
     <title>WealthFlow — Gestion Financière Personnelle</title>
     <meta name="description" content="Application SaaS de gestion financière personnelle en Franc CFA (FCFA) avec suivi des budgets, tirelires d'épargne, analyse de dépenses et stratégie financière." />
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    
+    <!-- Icônes et Favicons -->
+    <link rel="icon" type="image/jpeg" href="/pwa-icon-original.jpg" />
+    <link rel="apple-touch-icon" href="/pwa-icon-original.jpg" />
+    <link rel="shortcut icon" href="/pwa-icon-original.jpg" />
+    
+    <!-- Métadonnées PWA pour iOS/Safari -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="WealthFlow" />
+    
+    <!-- Métadonnées PWA pour Android/Chrome -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="application-name" content="WealthFlow" />
+    
+    <!-- Theme Color -->
+    <meta name="theme-color" content="#FF5330" />
+    <meta name="msapplication-TileColor" content="#FF5330" />
+    <meta name="msapplication-TileImage" content="/pwa-icon-original.jpg" />
+    
+    <!-- Open Graph -->
     <meta property="og:title" content="WealthFlow — Gestion Financière Personnelle" />
     <meta property="og:description" content="Application SaaS de gestion financière personnelle en Franc CFA (FCFA) avec suivi des budgets, tirelires d'épargne, analyse de dépenses et stratégie financière." />
     <meta property="og:type" content="website" />
+    <meta property="og:image" content="/pwa-icon-original.jpg" />
+    
+    <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image" />
-    <link rel="icon" type="image/png" href="/logo-wealthflow-official.png" />
-    <link rel="apple-touch-icon" href="/logo-wealthflow-official.png" />
+    <meta name="twitter:title" content="WealthFlow — Gestion Financière Personnelle" />
+    <meta name="twitter:description" content="Application de gestion financière en FCFA" />
+    <meta name="twitter:image" content="/pwa-icon-original.jpg" />
+    
+    <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">

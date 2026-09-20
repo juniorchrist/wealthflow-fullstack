@@ -1,0 +1,37 @@
+{
+  "name": "WealthFlow",
+  "short_name": "WealthFlow",
+  "description": "Application de gestion financière personnelle en Franc CFA (FCFA)",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FFFFFF",
+  "theme_color": "#FF5330",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "lang": "fr",
+  "dir": "ltr",
+  "icons": [
+    {
+      "src": "/pwa-icon-original.jpg",
+      "sizes": "any",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["finance", "productivity", "business"],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Dashboard",
+      "short_name": "Dashboard",
+      "description": "Accéder au tableau de bord",
+      "url": "/",
+      "icons": [
+        {
+          "src": "/pwa-icon-original.jpg",
+          "sizes": "any"
+        }
+      ]
+    }
+  ]
+}

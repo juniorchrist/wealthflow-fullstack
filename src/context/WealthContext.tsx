@@ -299,10 +299,11 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
 
       // 3. Transactions
+      let remoteTxs: Transaction[] = [];
       const txRes = await api.transactions.getAll({ limit: 100 });
       const txData = txRes.data?.transactions || (Array.isArray(txRes.data) ? txRes.data : null);
       if (txRes.success && Array.isArray(txData)) {
-        const remoteTxs: Transaction[] = txData.map((t: any) => ({
+        remoteTxs = txData.map((t: any) => ({
           id: t.id,
           title: t.title,
           amount: t.amount,
@@ -357,6 +358,10 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             checkedBoxes: g.checkedBoxes || [],
           }));
           setSavingsGoals(remoteGoals);
+
+          // Note: Ne plus reconstituer automatiquement les activités de paliers.
+          // Les paliers cochés créent maintenant leurs propres transactions via toggleGoalCheckbox.
+          // Cette logique de réconciliation n'est plus nécessaire car les transactions sont persistées en backend.
         }
       } else if (!goalsRes.success) {
         console.warn('[WealthFlow API] Erreur lors du chargement des objectifs d\'épargne:', goalsRes.message);
@@ -560,6 +565,21 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return transactions.filter((t) => t.type === 'expense').reduce((acc, curr) => acc + curr.amount, 0);
   }, [transactions]);
 
+  // Calcul des dépenses du mois courant uniquement (pour l'utilisation du budget)
+  const currentMonthExpenses = useMemo(() => {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
+    
+    return transactions
+      .filter((t) => {
+        if (t.type !== 'expense') return false;
+        const d = new Date(t.date);
+        return !isNaN(d.getTime()) && d.getFullYear() === currentYear && d.getMonth() === currentMonth;
+      })
+      .reduce((acc, curr) => acc + curr.amount, 0);
+  }, [transactions]);
+
   const totalSavingsDeposits = useMemo(() => {
     return transactions.filter((t) => t.type === 'savings_deposit').reduce((acc, curr) => acc + curr.amount, 0);
   }, [transactions]);
@@ -576,7 +596,8 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     .filter((c) => c.type === 'expense')
     .reduce((acc, curr) => acc + curr.budgetLimit, 0);
 
-  const monthlyBudgetSpent = totalExpenses;
+  // IMPORTANT : Utiliser les dépenses du mois courant pour l'utilisation du budget (source de vérité identique au backend)
+  const monthlyBudgetSpent = currentMonthExpenses;
   const monthlyBudgetRemaining = Math.max(0, monthlyBudgetTotal - monthlyBudgetSpent);
 
   const savingsRate = totalIncome > 0 ? Math.round(((totalIncome - totalExpenses) / totalIncome) * 100) : 0;
@@ -677,7 +698,7 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     // 2. Maîtrise et respect du budget mensuel (jusqu'à 35 points)
     if (monthlyBudgetTotal > 0) {
-      const budgetUsage = totalExpenses / monthlyBudgetTotal;
+      const budgetUsage = currentMonthExpenses / monthlyBudgetTotal;
       if (budgetUsage <= 0.70) {
         score += 35; // Utilisation saine (< 70%)
       } else if (budgetUsage <= 1.0) {
@@ -687,7 +708,7 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         score += Math.max(5, Math.round(21 - (budgetUsage - 1.0) * 20));
       }
     } else {
-      score += totalExpenses <= totalIncome ? 25 : 10;
+      score += currentMonthExpenses <= totalIncome ? 25 : 10;
     }
 
     // 3. Réserve d'urgence et objectifs d'épargne (jusqu'à 25 points)
@@ -705,7 +726,7 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
 
     return Math.min(100, Math.max(10, Math.round(score)));
-  }, [transactions.length, totalSaved, totalIncome, totalExpenses, monthlyBudgetTotal, savingsGoals, totalBalance]);
+  }, [transactions.length, totalSaved, totalIncome, totalExpenses, monthlyBudgetTotal, currentMonthExpenses, savingsGoals, totalBalance]);
 
   const financialHealthMessage = useMemo(() => {
     if (transactions.length === 0 && totalSaved === 0) {
@@ -747,14 +768,13 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           expenses: totalExpenses,
           savings: totalSaved,
           transactions: transactions.length,
-          // Préserver budgetTotal/budgetSpent/budgetUsagePercentage depuis le backend si disponibles
+          // Utiliser les mêmes calculs que le dashboard utilisateur et le backend (source de vérité unique)
           budgetTotal: resolvedBudgetTotal,
-          budgetSpent: existing?.budgetSpent ?? totalExpenses,
-          budgetUsagePercentage: existing?.budgetUsagePercentage ?? (
+          budgetSpent: currentMonthExpenses,
+          budgetUsagePercentage: 
             resolvedBudgetTotal > 0
-              ? Math.min(100, Math.round((totalExpenses / resolvedBudgetTotal) * 100))
-              : 0
-          ),
+              ? Math.min(100, Math.round((currentMonthExpenses / resolvedBudgetTotal) * 100))
+              : 0,
         };
 
         let updated: AdminUser[];
@@ -779,6 +799,7 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     totalSaved,
     transactions.length,
     monthlyBudgetTotal,
+    currentMonthExpenses,
   ]);
 
   // Suppression et bannissement d'un utilisateur par l'administrateur (avec motif réel)
@@ -1035,32 +1056,36 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const toggleGoalCheckbox = async (goalId: string, boxIndex: number) => {
-    // FIX Bug 3 : Optimistic update immédiat — suppression du re-fetch qui écrasait le calcul local
-    let updatedCheckedBoxes: number[] = [];
-    let newCurrentAmount = 0;
+    const targetGoal = savingsGoals.find((g) => g.id === goalId);
+    if (!targetGoal) return;
 
+    const checkedSet = new Set<number>(targetGoal.checkedBoxes || []);
+    const wasChecked = checkedSet.has(boxIndex);
+    const totalBoxes = targetGoal.checkboxesCount || 10;
+    const unitValue = Math.round(targetGoal.targetAmount / totalBoxes);
+
+    // Clé unique et balise déterministe pour éviter tout doublon
+    const boxTag = `[palier:${goalId}:${boxIndex}]`;
+    const tempTxId = `tx-box-${goalId}-${boxIndex}`;
+
+    if (wasChecked) {
+      checkedSet.delete(boxIndex);
+    } else {
+      checkedSet.add(boxIndex);
+    }
+
+    const updatedCheckedBoxes = Array.from(checkedSet);
+    const diffCount = wasChecked ? -1 : 1;
+    const deltaAmount = unitValue * diffCount;
+    const newCurrentAmount = Math.min(
+      targetGoal.targetAmount,
+      Math.max(0, targetGoal.currentAmount + deltaAmount)
+    );
+
+    // 1. Mettre à jour immédiatement l'objectif d'épargne (optimistic update réactif)
     setSavingsGoals((prev) =>
       prev.map((goal) => {
         if (goal.id !== goalId) return goal;
-        const checkedSet = new Set<number>(goal.checkedBoxes || []);
-        const totalBoxes = goal.checkboxesCount || 10;
-        const unitValue = goal.targetAmount / totalBoxes;
-
-        const wasChecked = checkedSet.has(boxIndex);
-        if (wasChecked) {
-          checkedSet.delete(boxIndex);
-        } else {
-          checkedSet.add(boxIndex);
-        }
-
-        updatedCheckedBoxes = Array.from(checkedSet);
-        const diffCount = wasChecked ? -1 : 1;
-        const deltaAmount = Math.round(unitValue * diffCount);
-        newCurrentAmount = Math.min(
-          goal.targetAmount,
-          Math.max(0, goal.currentAmount + deltaAmount)
-        );
-
         return {
           ...goal,
           checkedBoxes: updatedCheckedBoxes,
@@ -1069,16 +1094,96 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       })
     );
 
-    try {
-      // Persister les cases cochées en backend (checkedBoxes uniquement)
-      // Le backend recalcule currentAmount depuis les dépôts réels au prochain chargement
-      await api.savings.update(goalId, {
-        checkedBoxes: updatedCheckedBoxes,
-      });
-      // PAS de re-fetch api.savings.getAll() ici — l'optimistic update est la source de vérité
-    } catch (err) {
-      console.warn('[WealthFlow API] Erreur mise à jour cases épargne:', err);
-      // En cas d'erreur, l'optimistic update reste visible
+    // 2. Gestion de l'activité (Transaction)
+    if (!wasChecked) {
+      // ─── PALIER COCHÉ ───
+      // Vérifier d'abord qu'il n'existe pas déjà une transaction pour ce palier
+      const existingTx = transactions.find(
+        (t) => t.id === tempTxId || (t.notes && t.notes.includes(boxTag))
+      );
+
+      if (!existingTx) {
+        // Créer automatiquement une activité de type épargne
+        const epargneCat =
+          categories.find(
+            (c) => c.name.toLowerCase().includes('épargne') || c.id === 'default-epargne-auto'
+          ) || categories[0];
+        const categoryId = epargneCat?.id || 'default-epargne-auto';
+        const categoryName = epargneCat?.name || 'Épargne & Investissement';
+
+        const newTx: Transaction = {
+          id: tempTxId,
+          title: `Épargne - ${targetGoal.title}`,
+          amount: unitValue,
+          type: 'savings_deposit',
+          category: categoryName,
+          categoryId,
+          account: 'Compte principal',
+          date: new Date().toISOString().split('T')[0],
+          time: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+          notes: `${boxTag} Palier ${boxIndex + 1} validé sur ${targetGoal.title}`,
+        };
+
+        // Ajouter la nouvelle activité en tête de liste
+        setTransactions((prev) => [newTx, ...prev]);
+
+        try {
+          // Persister les cases cochées et enregistrer la transaction en backend
+          const [updateRes, txRes] = await Promise.all([
+            api.savings.update(goalId, { checkedBoxes: updatedCheckedBoxes }),
+            api.transactions.create({
+              title: newTx.title,
+              amount: unitValue,
+              type: 'savings_deposit',
+              categoryId,
+              date: newTx.date,
+              time: newTx.time,
+              notes: newTx.notes,
+            }),
+          ]);
+
+          if (txRes?.success && txRes.data?.id) {
+            const realTxId = txRes.data.id;
+            setTransactions((prev) =>
+              prev.map((t) => (t.id === tempTxId ? { ...t, id: realTxId } : t))
+            );
+          }
+        } catch (err) {
+          console.warn('[WealthFlow API] Erreur lors de la validation du palier:', err);
+        }
+      } else {
+        // La transaction existe déjà, juste mettre à jour les cases cochées
+        try {
+          await api.savings.update(goalId, { checkedBoxes: updatedCheckedBoxes });
+        } catch (err) {
+          console.warn('[WealthFlow API] Erreur lors de la mise à jour des cases cochées:', err);
+        }
+      }
+    } else {
+      // ─── PALIER DÉCOCHÉ ───
+      // Trouver la transaction correspondante avant suppression pour récupérer son ID backend éventuel
+      const existingTx = transactions.find(
+        (t) => t.id === tempTxId || (t.notes && t.notes.includes(boxTag))
+      );
+
+      // Supprimer immédiatement l'activité correspondante (éviter les montants fantômes)
+      setTransactions((prev) =>
+        prev.filter((t) => t.id !== tempTxId && (!t.notes || !t.notes.includes(boxTag)))
+      );
+
+      try {
+        await api.savings.update(goalId, { checkedBoxes: updatedCheckedBoxes });
+
+        // Supprimer la transaction en backend si elle existe
+        if (existingTx) {
+          // Supprimer uniquement si c'est un ID backend réel, pas temporaire
+          if (!existingTx.id.startsWith('tx-box-')) {
+            await api.transactions.delete(existingTx.id).catch(() => {});
+          }
+        }
+      } catch (err) {
+        console.warn('[WealthFlow API] Erreur lors du retrait du palier:', err);
+      }
     }
   };
 
