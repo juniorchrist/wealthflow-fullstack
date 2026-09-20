@@ -124,7 +124,16 @@ export const AdminView: React.FC = () => {
       return [];
     }
   });
-  const [ticketsList, setTicketsList] = useState<any[]>([]);
+  const [ticketsList, setTicketsList] = useState<any[]>(() => {
+    try {
+      const saved = localStorage.getItem('wf_admin_tickets_list_v2');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [ticketToReply, setTicketToReply] = useState<any | null>(null);
+  const [ticketReplyText, setTicketReplyText] = useState('');
   const [legalDraft, setLegalDraft] = useState({ termsOfService: '', privacyPolicy: '' });
   const [legalSaved, setLegalSaved] = useState(false);
   const [legalLoading, setLegalLoading] = useState(false);
@@ -152,6 +161,9 @@ export const AdminView: React.FC = () => {
           ? (res.data as any).data
           : [];
         setTicketsList(list);
+        try {
+          localStorage.setItem('wf_admin_tickets_list_v2', JSON.stringify(list));
+        } catch {}
       }
     } catch (e) {
       console.error('[AdminView] Erreur chargement tickets:', e);
@@ -162,17 +174,30 @@ export const AdminView: React.FC = () => {
     try {
       const res = await api.admin.getBans();
       if (res.success && res.data) {
-        const list = Array.isArray(res.data)
+        const backendList: any[] = Array.isArray(res.data)
           ? res.data
           : Array.isArray((res.data as any)?.bans)
           ? (res.data as any).bans
           : Array.isArray((res.data as any)?.data)
           ? (res.data as any).data
           : [];
-        setBansList(list);
-        try {
-          localStorage.setItem('wf_admin_bans_list_v2', JSON.stringify(list));
-        } catch {}
+
+        setBansList((prev) => {
+          const map = new Map<string, any>();
+          prev.forEach((b) => {
+            if (b.email) map.set(b.email.toLowerCase(), b);
+          });
+          backendList.forEach((b) => {
+            if (b.email) map.set(b.email.toLowerCase(), b);
+          });
+          const merged = Array.from(map.values()).sort(
+            (a, b) => new Date(b.bannedAt || b.createdAt || 0).getTime() - new Date(a.bannedAt || a.createdAt || 0).getTime()
+          );
+          try {
+            localStorage.setItem('wf_admin_bans_list_v2', JSON.stringify(merged));
+          } catch {}
+          return merged;
+        });
       }
     } catch (e) {
       console.error('[AdminView] Erreur chargement bans:', e);
@@ -208,36 +233,10 @@ export const AdminView: React.FC = () => {
     }).catch(() => {});
   }, [refreshAdminUsers, activeSection]);
 
-  // Utilisateurs 100% réels (aucun compte fictif)
+  // Utilisateurs 100% réels (aucun compte fictif ni régénération fantôme)
   const ALL_USERS: AdminUser[] = useMemo(() => {
-    if (registeredUsers.length > 0) {
-      return registeredUsers;
-    }
-    // Si la liste est encore vide mais qu'un profil utilisateur est présent
-    if (userProfile.email || userProfile.name) {
-      const formattedJoin = userProfile.createdAt
-        ? new Date(userProfile.createdAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })
-        : new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
-      return [
-        {
-          id: userProfile.id || 'u-1',
-          name: userProfile.name || userProfile.email.split('@')[0] || 'Utilisateur',
-          email: userProfile.email || '',
-          phone: userProfile.phone || '',
-          plan: userProfile.plan || 'WealthFlow Pro',
-          status: 'actif',
-          lastLogin: 'En cours de session',
-          joinDate: formattedJoin,
-          income: totalIncome,
-          expenses: totalExpenses,
-          savings: totalSaved,
-          transactions: transactions.length,
-          budgetTotal: monthlyBudgetTotal,
-        },
-      ];
-    }
-    return [];
-  }, [registeredUsers, userProfile, totalIncome, totalExpenses, totalSaved, transactions.length, monthlyBudgetTotal]);
+    return registeredUsers.filter((u) => u.email?.toLowerCase() !== 'admin@wealthflow.app');
+  }, [registeredUsers]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -510,20 +509,39 @@ export const AdminView: React.FC = () => {
     setTimeout(() => setActionFeedback(null), 2500);
   };
 
-  // Mettre à jour le statut d'un ticket avec réponse optionnelle
+  // Mettre à jour le statut d'un ticket avec réponse optionnelle — optimistic update
   const handleUpdateTicketStatus = async (ticketId: string, newStatus: string, reply?: string) => {
+    // Mise à jour optimiste immédiate
+    const updatedList = ticketsList.map((t) =>
+      t.id === ticketId ? { ...t, status: newStatus, ...(reply ? { reply } : {}) } : t
+    );
+    setTicketsList(updatedList);
     try {
-      const res = await api.admin.updateTicket(ticketId, newStatus, reply);
-      if (res.success) {
-        setTicketsList((prev) =>
-          prev.map((t) => (t.id === ticketId ? { ...t, status: newStatus, ...(reply ? { reply } : {}) } : t))
-        );
-        setActionFeedback(`Statut du ticket mis à jour : ${newStatus}`);
-        setTimeout(() => setActionFeedback(null), 2000);
-      }
+      localStorage.setItem('wf_admin_tickets_list_v2', JSON.stringify(updatedList));
+    } catch {}
+
+    setActionFeedback(`Ticket ${newStatus === 'resolved' ? 'résolu' : 'mis à jour'} ✓`);
+    setTimeout(() => setActionFeedback(null), 2500);
+
+    // Persistance API en arrière-plan
+    try {
+      await api.admin.updateTicket(ticketId, newStatus, reply);
     } catch (e) {
-      console.error(e);
+      console.warn('[AdminView] Erreur persistance ticket:', e);
     }
+  };
+
+  // Fermer la modale de réponse ticket
+  const handleCloseTicketReply = () => {
+    setTicketToReply(null);
+    setTicketReplyText('');
+  };
+
+  // Valider la réponse depuis la modale
+  const handleSubmitTicketReply = () => {
+    if (!ticketToReply) return;
+    handleUpdateTicketStatus(ticketToReply.id, 'resolved', ticketReplyText.trim() || 'Votre demande a été traitée par l\'équipe d\'assistance WealthFlow.');
+    handleCloseTicketReply();
   };
 
   const handleAdminLogout = () => {
@@ -762,14 +780,24 @@ export const AdminView: React.FC = () => {
                   <div className="flex items-center justify-between text-[10px] text-[#6F6F73] mb-1">
                     <span>Utilisation budget</span>
                     <span className="font-bold text-[#18181B]">
-                      {selectedUser.budgetTotal > 0 ? Math.min(100, Math.round((selectedUser.expenses / selectedUser.budgetTotal) * 100)) : 0}%
+                      {selectedUser.budgetTotal > 0
+                        ? (selectedUser.budgetUsagePercentage !== undefined
+                            ? Math.min(100, Math.round(selectedUser.budgetUsagePercentage))
+                            : Math.min(100, Math.round(((selectedUser.budgetSpent ?? selectedUser.expenses) / selectedUser.budgetTotal) * 100)))
+                        : 0}%
                     </span>
                   </div>
                   <div className="w-full h-1.5 bg-[#F0F0F0] rounded-full overflow-hidden">
                     <div
                       className="h-full bg-[#FF5330] rounded-full"
                       style={{
-                        width: `${selectedUser.budgetTotal > 0 ? Math.min(100, Math.round((selectedUser.expenses / selectedUser.budgetTotal) * 100)) : 0}%`,
+                        width: `${
+                          selectedUser.budgetTotal > 0
+                            ? (selectedUser.budgetUsagePercentage !== undefined
+                                ? Math.min(100, Math.round(selectedUser.budgetUsagePercentage))
+                                : Math.min(100, Math.round(((selectedUser.budgetSpent ?? selectedUser.expenses) / selectedUser.budgetTotal) * 100)))
+                            : 0
+                        }%`,
                       }}
                     />
                   </div>
@@ -1329,6 +1357,14 @@ export const AdminView: React.FC = () => {
               </div>
               <div className="flex items-center gap-2">
                 <button
+                  onClick={fetchBans}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-[#E8E8E8] text-xs font-bold text-[#18181B] hover:bg-[#F7F7F7] active:scale-95 transition-all cursor-pointer"
+                  title="Rafraîchir les comptes bannis"
+                >
+                  <RotateCw className="w-3.5 h-3.5 text-[#FF5330]" />
+                  <span>Actualiser</span>
+                </button>
+                <button
                   onClick={() => setIsManualBanModalOpen(true)}
                   className="px-3 py-1.5 rounded-xl bg-[#18181B] hover:bg-[#27272A] text-white text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs active:scale-95"
                 >
@@ -1470,8 +1506,8 @@ export const AdminView: React.FC = () => {
                         {ticket.status !== 'resolved' && (
                           <button
                             onClick={() => {
-                              const replyText = window.prompt("Rédigez un message de réponse pour l'utilisateur (optionnel) :", "Votre demande a été traitée par l'équipe d'assistance.");
-                              handleUpdateTicketStatus(ticket.id, 'resolved', replyText || undefined);
+                              setTicketToReply(ticket);
+                              setTicketReplyText('');
                             }}
                             className="px-2.5 py-1 rounded-lg bg-[#10B981]/10 hover:bg-[#10B981]/20 text-[#10B981] font-bold text-xs transition-colors cursor-pointer"
                           >
@@ -1817,6 +1853,56 @@ export const AdminView: React.FC = () => {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* ── MODALE RÉPONSE TICKET ──────────────────────────────────────────── */}
+        {ticketToReply && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+            <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl p-6 flex flex-col gap-4">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <h3 className="text-base font-extrabold text-[#18181B]">Traiter & Répondre</h3>
+                  <p className="text-xs text-[#6F6F73] mt-0.5">
+                    Ticket de <strong>{ticketToReply.name}</strong> — {ticketToReply.subject}
+                  </p>
+                </div>
+                <button onClick={handleCloseTicketReply} className="p-1.5 rounded-lg hover:bg-[#F4F4F5] transition-colors cursor-pointer">
+                  <X className="w-4 h-4 text-[#6F6F73]" />
+                </button>
+              </div>
+
+              <div className="bg-[#F8F8FA] rounded-xl p-3 text-xs text-[#3F3F46]">
+                <p className="font-semibold text-[#18181B] mb-1">Message de l'utilisateur :</p>
+                <p>{ticketToReply.message}</p>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-bold text-[#18181B]">Votre réponse :</label>
+                <textarea
+                  value={ticketReplyText}
+                  onChange={(e) => setTicketReplyText(e.target.value)}
+                  placeholder="Rédigez votre réponse à l'utilisateur..."
+                  rows={4}
+                  className="w-full rounded-xl border border-[#E4E4E7] px-3 py-2.5 text-xs text-[#18181B] bg-white resize-none focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]/30 focus:border-[#8B5CF6] transition-all"
+                />
+              </div>
+
+              <div className="flex items-center gap-3 pt-1">
+                <button
+                  onClick={handleCloseTicketReply}
+                  className="flex-1 py-2.5 rounded-xl border border-[#E4E4E7] text-[#6F6F73] font-bold text-xs hover:bg-[#F4F4F5] transition-colors cursor-pointer"
+                >
+                  Annuler
+                </button>
+                <button
+                  onClick={handleSubmitTicketReply}
+                  className="flex-1 py-2.5 rounded-xl bg-[#10B981] hover:bg-[#059669] text-white font-bold text-xs shadow-sm transition-colors cursor-pointer"
+                >
+                  Marquer résolu &amp; Envoyer
+                </button>
+              </div>
             </div>
           </div>
         )}

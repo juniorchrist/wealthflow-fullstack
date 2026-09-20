@@ -32,19 +32,6 @@ export const initialTransactions: Transaction[] = [];
 
 export const initialSavingsGoals: SavingsGoal[] = [];
 
-export const initialChartData: MonthlyChartData[] = [
-  { month: 'Janv.', fullMonth: 'Janvier', revenus: 2100000, depenses: 1500000, epargne: 600000 },
-  { month: 'Févr.', fullMonth: 'Février', revenus: 2150000, depenses: 1450000, epargne: 700000 },
-  { month: 'Mars', fullMonth: 'Mars', revenus: 2200000, depenses: 1600000, epargne: 600000 },
-  { month: 'Avr.', fullMonth: 'Avril', revenus: 2100000, depenses: 1350000, epargne: 750000 },
-  { month: 'Mai', fullMonth: 'Mai', revenus: 2300000, depenses: 1400000, epargne: 900000 },
-  { month: 'Juin', fullMonth: 'Juin', revenus: 2250000, depenses: 1520000, epargne: 730000 },
-  { month: 'Juil.', fullMonth: 'Juillet', revenus: 2400000, depenses: 1580000, epargne: 820000 },
-  { month: 'Août', fullMonth: 'Août', revenus: 2300000, depenses: 1390000, epargne: 910000 },
-  { month: 'Sept.', fullMonth: 'Septembre', revenus: 2350000, depenses: 1420000, epargne: 930000 },
-  { month: 'Oct.', fullMonth: 'Octobre', revenus: 2380000, depenses: 1440000, epargne: 940000 },
-  { month: 'Nov.', fullMonth: 'Novembre', revenus: 2450000, depenses: 1480000, epargne: 970000 },
-  { month: 'Déc.', fullMonth: 'Décembre', revenus: 2600000, depenses: 1650000, epargne: 950000 },
-];
+export const initialChartData: MonthlyChartData[] = [];
 
 export const initialNotifications: NotificationItem[] = [];

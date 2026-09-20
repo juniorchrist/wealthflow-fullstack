@@ -99,6 +99,8 @@ export interface AdminUser {
   balance?: number;
   transactions: number;
   budgetTotal: number;
+  budgetSpent?: number;
+  budgetUsagePercentage?: number;
   recentTransactions?: any[];
 }
 

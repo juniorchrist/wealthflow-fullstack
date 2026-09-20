@@ -48,10 +48,12 @@ export const getAllSavingsGoals = async (userId: string) => {
     const boxesCount = goal.checkboxesCount || 10;
     const checkedBoxes = Array.isArray(goal.checkedBoxes) ? (goal.checkedBoxes as number[]) : [];
     const milestoneAmount = Math.round((checkedBoxes.length / boxesCount) * goal.targetAmount);
-    const currentAmount = milestoneAmount + depositsAmount;
+    // Source unique de vérité : la somme des dépôts réels (savings_deposits)
+    // S'il n'y a pas de dépôts réels enregistrés mais que des cases ont été cochées manuellement, utiliser milestoneAmount
+    const currentAmount = depositsAmount > 0 ? depositsAmount : milestoneAmount;
 
     const progress = goal.targetAmount > 0 
-      ? Math.round((currentAmount / goal.targetAmount) * 100) 
+      ? Math.min(100, Math.round((currentAmount / goal.targetAmount) * 100)) 
       : 0;
 
     return {
@@ -84,10 +86,11 @@ export const getSavingsGoalById = async (goalId: string, userId: string) => {
   const boxesCount = goal.checkboxesCount || 10;
   const checkedBoxes = Array.isArray(goal.checkedBoxes) ? (goal.checkedBoxes as number[]) : [];
   const milestoneAmount = Math.round((checkedBoxes.length / boxesCount) * goal.targetAmount);
-  const currentAmount = milestoneAmount + depositsAmount;
+  // Source unique de vérité : la somme des dépôts réels
+  const currentAmount = depositsAmount > 0 ? depositsAmount : milestoneAmount;
 
   const progress = goal.targetAmount > 0 
-    ? Math.round((currentAmount / goal.targetAmount) * 100) 
+    ? Math.min(100, Math.round((currentAmount / goal.targetAmount) * 100)) 
     : 0;
 
   return {
@@ -155,10 +158,11 @@ export const updateSavingsGoal = async (
   const boxesCount = updated.checkboxesCount || 10;
   const checkedBoxes = Array.isArray(updated.checkedBoxes) ? (updated.checkedBoxes as number[]) : [];
   const milestoneAmount = Math.round((checkedBoxes.length / boxesCount) * updated.targetAmount);
-  const currentAmount = milestoneAmount + depositsAmount;
+  // Source unique de vérité : la somme des dépôts réels
+  const currentAmount = depositsAmount > 0 ? depositsAmount : milestoneAmount;
 
   const progress = updated.targetAmount > 0 
-    ? Math.round((currentAmount / updated.targetAmount) * 100) 
+    ? Math.min(100, Math.round((currentAmount / updated.targetAmount) * 100)) 
     : 0;
 
   return {

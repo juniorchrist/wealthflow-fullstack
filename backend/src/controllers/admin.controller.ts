@@ -110,11 +110,16 @@ export const listAdminUsersHandler = async (
   try {
     const rawUsers = await getAllUsers();
 
+    // Filtrer pour ne pas afficher le compte administrateur maître dans la liste des utilisateurs à modérer
+    const usersOnly = rawUsers.filter(
+      (u) => u.email.toLowerCase() !== 'admin@wealthflow.app'
+    );
+
     // Récupérer les emails bannis
     const bans = await prisma.banRecord.findMany({ select: { email: true } });
     const bannedEmailsSet = new Set(bans.map((b) => b.email.toLowerCase()));
 
-    const formattedUsers = rawUsers.map((u) => {
+    const formattedUsers = usersOnly.map((u) => {
       const income = u.transactions
         .filter((t) => t.type === 'income')
         .reduce((sum, t) => sum + Number(t.amount || 0), 0);
@@ -139,10 +144,17 @@ export const listAdminUsersHandler = async (
 
       const savings = Math.max(savingsFromDeposits, savingsFromTx);
 
-      const budgetTotal = u.budgets.reduce(
+      // Calculer le budget mensuel réel de l'utilisateur à partir de ses limites de catégories
+      const budgetFromCategories = ((u as any).categories || [])
+        .filter((c: any) => c.type === 'expense')
+        .reduce((sum: number, c: any) => sum + Number(c.budgetLimit || 0), 0);
+
+      const budgetFromBudgets = (u.budgets || []).reduce(
         (sum, b) => sum + Number(b.totalBudget || 0),
         0
       );
+
+      const budgetTotal = Math.max(budgetFromCategories, budgetFromBudgets);
 
       const calculatedBalance = income - expenses - savings;
       const isBanned = bannedEmailsSet.has(u.email.toLowerCase());
@@ -154,6 +166,23 @@ export const listAdminUsersHandler = async (
         month: 'short',
         year: 'numeric',
       });
+
+      const now = new Date();
+      const currentYear = now.getFullYear();
+      const currentMonth = now.getMonth();
+
+      // Dépenses réelles du mois courant pour l'utilisation du budget
+      const currentMonthExpenses = u.transactions
+        .filter((t) => {
+          if (t.type !== 'expense') return false;
+          const d = new Date(t.date);
+          return !isNaN(d.getTime()) && d.getFullYear() === currentYear && d.getMonth() === currentMonth;
+        })
+        .reduce((sum, t) => sum + Number(t.amount || 0), 0);
+
+      const budgetSpent = currentMonthExpenses > 0 ? currentMonthExpenses : expenses;
+      const budgetUsagePercentage =
+        budgetTotal > 0 ? Math.min(100, Math.round((budgetSpent / budgetTotal) * 100)) : 0;
 
       return {
         id: u.id,
@@ -171,6 +200,8 @@ export const listAdminUsersHandler = async (
         balance: calculatedBalance,
         transactions: u.transactions.length,
         budgetTotal,
+        budgetSpent,
+        budgetUsagePercentage,
         recentTransactions: u.transactions.slice(0, 5),
       };
     });
@@ -204,12 +235,21 @@ export const deleteAdminUserHandler = async (
       user = await findUserByEmail(String(searchEmail).toLowerCase().trim());
     }
 
+    const targetEmail = (user?.email || email || (id.includes('@') ? id : '')).toLowerCase().trim();
+
+    // Empêcher la suppression du compte administrateur maître
+    if (user?.role === 'admin' || targetEmail === 'admin@wealthflow.app') {
+      res.status(400).json({
+        success: false,
+        message: 'Impossible de supprimer ou bannir le compte administrateur principal du système.',
+      });
+      return;
+    }
+
     const banReason =
       reason && String(reason).trim().length > 0
         ? String(reason).trim()
         : 'Suppression administrative pour non-respect des conditions d’utilisation';
-
-    const targetEmail = (user?.email || email || (id.includes('@') ? id : '')).toLowerCase().trim();
 
     if (!targetEmail && !user) {
       res.status(404).json({
@@ -276,6 +316,14 @@ export const createBanHandler = async (
     }
 
     const cleanEmail = String(email).toLowerCase().trim();
+    if (cleanEmail === 'admin@wealthflow.app') {
+      res.status(400).json({
+        success: false,
+        message: 'Impossible de bannir le compte administrateur système.',
+      });
+      return;
+    }
+
     const banReason =
       reason && String(reason).trim().length > 0
         ? String(reason).trim()
@@ -283,6 +331,13 @@ export const createBanHandler = async (
 
     // Trouver l'utilisateur s'il existe
     const user = await findUserByEmail(cleanEmail);
+    if (user?.role === 'admin') {
+      res.status(400).json({
+        success: false,
+        message: 'Impossible de bannir un compte avec privilèges administrateur.',
+      });
+      return;
+    }
 
     const banRecord = await prisma.banRecord.upsert({
       where: { email: cleanEmail },
@@ -424,9 +479,15 @@ export const deleteBanHandler = async (
 ) => {
   try {
     const { id } = req.params;
-    await prisma.banRecord.delete({
-      where: { id },
-    });
+    if (id.includes('@')) {
+      await prisma.banRecord.deleteMany({
+        where: { email: id.toLowerCase().trim() },
+      });
+    } else {
+      await prisma.banRecord.deleteMany({
+        where: { id },
+      });
+    }
 
     res.status(200).json({
       success: true,

@@ -138,11 +138,15 @@ export const addDepositHandler = async (
   try {
     const userId = req.user!.userId;
     const deposit = await addDepositToGoal(req.params.id, userId, req.body);
+    const updatedGoal = await getSavingsGoal(req.params.id, userId);
 
     res.status(201).json({
       success: true,
       message: 'Dépôt ajouté avec succès',
-      data: { deposit },
+      data: {
+        deposit,
+        goal: updatedGoal,
+      },
     });
   } catch (error) {
     next(error);

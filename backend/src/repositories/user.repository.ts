@@ -130,6 +130,14 @@ export const getAllUsers = async () => {
           totalBudget: true,
         },
       },
+      categories: {
+        select: {
+          id: true,
+          name: true,
+          budgetLimit: true,
+          type: true,
+        },
+      },
     },
     orderBy: {
       createdAt: 'desc',
@@ -142,64 +150,82 @@ export const getAllUsers = async () => {
  */
 export const deleteUser = async (userId: string): Promise<User> => {
   return prisma.$transaction(async (tx) => {
-    // 1. Supprimer les dépôts d'épargne des objectifs de l'utilisateur
-    const goals = await tx.savingsGoal.findMany({
-      where: { userId },
-      select: { id: true },
-    });
-    const goalIds = goals.map((g) => g.id);
-    if (goalIds.length > 0) {
-      await tx.savingsDeposit.deleteMany({
-        where: { goalId: { in: goalIds } },
-      });
-    }
+    // 1. Récupérer les identifiants nécessaires
+    const [goals, userTxs, categories, budgets] = await Promise.all([
+      tx.savingsGoal.findMany({ where: { userId }, select: { id: true } }),
+      tx.transaction.findMany({ where: { userId }, select: { id: true } }),
+      tx.category.findMany({ where: { userId }, select: { id: true } }),
+      tx.budget.findMany({ where: { userId }, select: { id: true } }),
+    ]);
 
-    // 2. Supprimer les objectifs d'épargne
+    const goalIds = goals.map((g) => g.id);
+    const txIds = userTxs.map((t) => t.id);
+    const catIds = categories.map((c) => c.id);
+    const budgetIds = budgets.map((b) => b.id);
+
+    // 2. Supprimer TOUS les dépôts d'épargne (liés aux objectifs ou aux transactions de l'utilisateur)
+    await tx.savingsDeposit.deleteMany({
+      where: {
+        OR: [
+          ...(goalIds.length > 0 ? [{ goalId: { in: goalIds } }] : []),
+          ...(txIds.length > 0 ? [{ transactionId: { in: txIds } }] : []),
+        ],
+      },
+    });
+
+    // 3. Supprimer les objectifs d'épargne
     await tx.savingsGoal.deleteMany({
       where: { userId },
     });
 
-    // 3. Supprimer les budgets et leurs catégories
-    const budgets = await tx.budget.findMany({
-      where: { userId },
-      select: { id: true },
-    });
-    const budgetIds = budgets.map((b) => b.id);
-    if (budgetIds.length > 0) {
+    // 4. Supprimer les liaisons BudgetCategory (liées aux budgets ou aux catégories de l'utilisateur)
+    if (budgetIds.length > 0 || catIds.length > 0) {
       await tx.budgetCategory.deleteMany({
-        where: { budgetId: { in: budgetIds } },
-      });
-      await tx.budget.deleteMany({
-        where: { id: { in: budgetIds } },
+        where: {
+          OR: [
+            ...(budgetIds.length > 0 ? [{ budgetId: { in: budgetIds } }] : []),
+            ...(catIds.length > 0 ? [{ categoryId: { in: catIds } }] : []),
+          ],
+        },
       });
     }
 
-    // 4. Supprimer les transactions de l'utilisateur
+    // 5. Supprimer les budgets
+    await tx.budget.deleteMany({
+      where: { userId },
+    });
+
+    // 6. Supprimer les transactions de l'utilisateur
     await tx.transaction.deleteMany({
       where: { userId },
     });
 
-    // 5. Supprimer les catégories personnalisées de l'utilisateur
+    // 7. Supprimer les catégories personnalisées de l'utilisateur
     await tx.category.deleteMany({
       where: { userId },
     });
 
-    // 6. Supprimer les comptes bancaires / portefeuilles
+    // 8. Supprimer les comptes bancaires / portefeuilles
     await tx.account.deleteMany({
       where: { userId },
     });
 
-    // 7. Supprimer les notifications
+    // 9. Supprimer les notifications
     await tx.notification.deleteMany({
       where: { userId },
     });
 
-    // 8. Supprimer les refresh tokens
+    // 10. Supprimer les refresh tokens
     await tx.refreshToken.deleteMany({
       where: { userId },
     });
 
-    // 9. Supprimer enfin l'utilisateur
+    // 11. Dissocier ou supprimer les tickets support
+    await tx.supportTicket.deleteMany({
+      where: { userId },
+    });
+
+    // 12. Supprimer enfin l'utilisateur
     return tx.user.delete({
       where: { id: userId },
     });

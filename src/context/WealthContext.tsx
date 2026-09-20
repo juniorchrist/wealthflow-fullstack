@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
-import { initialUserProfile, initialChartData } from '../data/initialData';
+import { initialUserProfile } from '../data/initialData';
 import { ActiveTab, AdminUser, AppRoute, Category, MonthlyChartData, NotificationItem, SavingsGoal, Transaction, UserProfile } from '../types';
 import { api, getAuthToken, clearAuthTokens } from '../services/api';
 
@@ -582,54 +582,73 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const savingsRate = totalIncome > 0 ? Math.round(((totalIncome - totalExpenses) / totalIncome) * 100) : 0;
 
   // Calcul dynamique des flux mensuels pour les graphiques (Revenus, Dépenses, Épargne)
+  // Strictement basé sur les transactions réelles et leurs dates, sans mois futurs ni données fictives
   const chartData = useMemo<MonthlyChartData[]>(() => {
-    const monthDefs = [
-      { month: 'Janv.', fullMonth: 'Janvier', num: 0 },
-      { month: 'Févr.', fullMonth: 'Février', num: 1 },
-      { month: 'Mars', fullMonth: 'Mars', num: 2 },
-      { month: 'Avr.', fullMonth: 'Avril', num: 3 },
-      { month: 'Mai', fullMonth: 'Mai', num: 4 },
-      { month: 'Juin', fullMonth: 'Juin', num: 5 },
-      { month: 'Juil.', fullMonth: 'Juillet', num: 6 },
-      { month: 'Août', fullMonth: 'Août', num: 7 },
-      { month: 'Sept.', fullMonth: 'Septembre', num: 8 },
-      { month: 'Oct.', fullMonth: 'Octobre', num: 9 },
-      { month: 'Nov.', fullMonth: 'Novembre', num: 10 },
-      { month: 'Déc.', fullMonth: 'Décembre', num: 11 },
+    if (transactions.length === 0) {
+      return [];
+    }
+
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth(); // 0-indexed (ex: 8 pour septembre)
+
+    const MONTH_DEFS = [
+      { short: 'Janv.', full: 'Janvier' },
+      { short: 'Févr.', full: 'Février' },
+      { short: 'Mars', full: 'Mars' },
+      { short: 'Avr.', full: 'Avril' },
+      { short: 'Mai', full: 'Mai' },
+      { short: 'Juin', full: 'Juin' },
+      { short: 'Juil.', full: 'Juillet' },
+      { short: 'Août', full: 'Août' },
+      { short: 'Sept.', full: 'Septembre' },
+      { short: 'Oct.', full: 'Octobre' },
+      { short: 'Nov.', full: 'Novembre' },
+      { short: 'Déc.', full: 'Décembre' },
     ];
 
-    const aggregated = monthDefs.map((m) => {
+    // Générer les mois glissants passés jusqu'au mois actuel (inclus) — aucun mois futur
+    const rollingMonths: { year: number; monthNum: number; shortName: string; fullName: string }[] = [];
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(currentYear, currentMonth - i, 1);
+      rollingMonths.push({
+        year: d.getFullYear(),
+        monthNum: d.getMonth(),
+        shortName: MONTH_DEFS[d.getMonth()].short,
+        fullName: MONTH_DEFS[d.getMonth()].full,
+      });
+    }
+
+    const aggregated = rollingMonths.map((m) => {
       let rev = 0;
       let dep = 0;
       let ep = 0;
+
       transactions.forEach((t) => {
         const d = new Date(t.date);
-        if (!isNaN(d.getTime()) && d.getMonth() === m.num) {
+        if (!isNaN(d.getTime()) && d.getFullYear() === m.year && d.getMonth() === m.monthNum) {
           if (t.type === 'income') rev += t.amount;
           else if (t.type === 'expense') dep += t.amount;
           else if (t.type === 'savings_deposit') ep += t.amount;
         }
       });
+
       return {
-        month: m.month,
-        fullMonth: m.fullMonth,
+        month: m.shortName,
+        fullMonth: m.fullName,
         revenus: rev,
         depenses: dep,
         epargne: ep,
       };
     });
 
+    // Ne retourner que les données réelles (vide si aucune transaction)
     const hasData = aggregated.some((m) => m.revenus > 0 || m.depenses > 0 || m.epargne > 0);
     if (!hasData) {
-      return initialChartData;
+      return [];
     }
 
-    return aggregated.map((agg, idx) => {
-      if (agg.revenus === 0 && agg.depenses === 0 && agg.epargne === 0 && initialChartData[idx]) {
-        return initialChartData[idx];
-      }
-      return agg;
-    });
+    return aggregated;
   }, [transactions]);
 
   // Calcul dynamique et intelligent de la santé financière (0 à 100%)
@@ -704,22 +723,38 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setRegisteredUsers((prev) => {
         const email = userProfile.email || 'utilisateur@wealthflow.app';
         const existingIdx = prev.findIndex((u) => u.email.toLowerCase() === email.toLowerCase());
+        const existing = existingIdx >= 0 ? prev[existingIdx] : null;
+
+        // Conserver les données de budget issues du backend (elles sont exactes),
+        // ne les écraser QUE si elles n'existent pas encore (premier login, aucune donnée API reçue).
+        const resolvedBudgetTotal =
+          existing?.budgetTotal !== undefined && existing.budgetTotal > 0
+            ? existing.budgetTotal
+            : monthlyBudgetTotal;
+
         const userEntry: AdminUser = {
-          id: existingIdx >= 0 ? prev[existingIdx].id : (userProfile.id || `u-${Date.now()}`),
+          id: existing ? existing.id : (userProfile.id || `u-${Date.now()}`),
           name: userProfile.name || 'Utilisateur actif',
           email: userProfile.email || '',
           phone: userProfile.phone || '',
           plan: userProfile.plan || 'WealthFlow Pro',
           status: 'actif',
           lastLogin: 'En cours de session',
-          joinDate: existingIdx >= 0 && prev[existingIdx].joinDate
-            ? prev[existingIdx].joinDate
+          joinDate: existing?.joinDate
+            ? existing.joinDate
             : new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }),
           income: totalIncome,
           expenses: totalExpenses,
           savings: totalSaved,
           transactions: transactions.length,
-          budgetTotal: monthlyBudgetTotal,
+          // Préserver budgetTotal/budgetSpent/budgetUsagePercentage depuis le backend si disponibles
+          budgetTotal: resolvedBudgetTotal,
+          budgetSpent: existing?.budgetSpent ?? totalExpenses,
+          budgetUsagePercentage: existing?.budgetUsagePercentage ?? (
+            resolvedBudgetTotal > 0
+              ? Math.min(100, Math.round((totalExpenses / resolvedBudgetTotal) * 100))
+              : 0
+          ),
         };
 
         let updated: AdminUser[];
@@ -778,17 +813,17 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return success;
   };
 
-  const refreshAdminUsers = async () => {
+  const refreshAdminUsers = useCallback(async () => {
     try {
       const res = await api.admin.getUsers();
-      if (res.success && Array.isArray(res.data) && res.data.length > 0) {
+      if (res.success && Array.isArray(res.data)) {
         setRegisteredUsers(res.data);
         localStorage.setItem(STORAGE_KEYS.REGISTERED_USERS, JSON.stringify(res.data));
       }
     } catch (err) {
       console.warn('[WealthFlow API] Erreur récupération utilisateurs admin:', err);
     }
-  };
+  }, []);
 
   // Currency Formatter: 2 450 000 FCFA
   const formatCurrency = (amount: number, _hideDecimals = true): string => {
@@ -863,6 +898,24 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     setSavingsGoals((prev) => [newGoal, ...prev]);
 
+    // Si un dépôt initial est spécifié, ajouter immédiatement la transaction correspondante (source unique de vérité)
+    const tempTxId = `tx-dep-${Date.now()}`;
+    if (initialAmount > 0) {
+      const initTx: Transaction = {
+        id: tempTxId,
+        title: `Dépôt initial - ${goal.title}`,
+        amount: initialAmount,
+        type: 'savings_deposit',
+        category: 'Épargne & Investissement',
+        categoryId: 'default-epargne-auto',
+        account: 'Compte principal',
+        date: new Date().toISOString().split('T')[0],
+        time: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+        notes: `Versement initial sur ${goal.title}`,
+      };
+      setTransactions((prev) => [initTx, ...prev]);
+    }
+
     try {
       const res = await api.savings.create({
         title: goal.title,
@@ -878,8 +931,25 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setSavingsGoals((prev) =>
           prev.map((g) => (g.id === tempId ? { ...g, id: realGoalId } : g))
         );
-        if (initialDeposit && initialDeposit > 0) {
-          await contributeToGoal(realGoalId, initialDeposit);
+        // Persister le dépôt initial en backend s'il existe
+        if (initialAmount > 0) {
+          const depRes = await api.savings.deposit(realGoalId, {
+            amount: initialAmount,
+            date: new Date().toISOString(),
+          });
+          const depositData = depRes.data?.deposit || depRes.data;
+          const realTxId = depositData?.transaction?.id || depositData?.transactionId;
+          if (realTxId) {
+            setTransactions((prev) =>
+              prev.map((t) => (t.id === tempTxId ? { ...t, id: realTxId } : t))
+            );
+          }
+          const remoteGoalAmount = depRes.data?.goal?.currentAmount;
+          if (typeof remoteGoalAmount === 'number') {
+            setSavingsGoals((prev) =>
+              prev.map((g) => (g.id === realGoalId ? { ...g, currentAmount: remoteGoalAmount } : g))
+            );
+          }
         }
       }
     } catch (err) {
@@ -1000,11 +1070,10 @@ export const WealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     );
 
     try {
-      // Persister les cases cochées ET le currentAmount calculé localement en backend
-      // Le backend stocke checkedBoxes et currentAmount (calculé côté frontend pour éviter double-comptage)
+      // Persister les cases cochées en backend (checkedBoxes uniquement)
+      // Le backend recalcule currentAmount depuis les dépôts réels au prochain chargement
       await api.savings.update(goalId, {
         checkedBoxes: updatedCheckedBoxes,
-        currentAmount: newCurrentAmount,
       });
       // PAS de re-fetch api.savings.getAll() ici — l'optimistic update est la source de vérité
     } catch (err) {
