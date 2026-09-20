@@ -345,7 +345,7 @@ export const HelpCenterView: React.FC = () => {
                 </div>
                 <div>
                   <p className="text-[11px] text-[#71717A]">Ligne d'assistance directe</p>
-                  <p className="text-xs font-bold text-[#18181B]">+225 07 00 00 00 00</p>
+                  <p className="text-xs font-bold text-[#18181B]">+225 05 55 47 24 21</p>
                 </div>
               </div>
 
@@ -354,16 +354,6 @@ export const HelpCenterView: React.FC = () => {
                   Notre équipe examine les tickets et les demandes de recours du lundi au samedi de 08h00 à 20h00 GMT.
                 </p>
               </div>
-            </div>
-
-            <div className="rounded-2xl bg-[#EFF6FF] border border-[#BFDBFE] p-4 text-xs text-[#1E40AF] space-y-1.5">
-              <div className="flex items-center gap-1.5 font-bold">
-                <Shield className="w-4 h-4 text-[#3B82F6]" />
-                <span>Transparence & Sécurité</span>
-              </div>
-              <p className="text-[11px] text-[#1E3A8A]">
-                Chaque action de modération ou suppression effectuée par un administrateur est enregistrée avec sa justification légale.
-              </p>
             </div>
           </div>
         </div>
